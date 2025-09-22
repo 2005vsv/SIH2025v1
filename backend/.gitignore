@@ -1,0 +1,12 @@
+node_modules/
+dist/
+logs/
+uploads/
+.env
+.env.local
+.env.production
+*.log
+coverage/
+.nyc_output/
+.DS_Store
+Thumbs.db

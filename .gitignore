@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.production
+coverage/
+.DS_Store
+Thumbs.db
+*.log
+backend/logs/
+backend/uploads/
+frontend-web/dist/
+mobile/.expo/
+mobile/dist/
