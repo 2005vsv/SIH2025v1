@@ -39,7 +39,7 @@ const options: swaggerJSDoc.Options = {
             _id: { type: 'string' },
             email: { type: 'string', format: 'email' },
             name: { type: 'string' },
-            role: { type: 'string', enum: ['student', 'admin'] },
+            role: { type: 'string', enum: ['student', 'admin', 'faculty'] },
             studentId: { type: 'string' },
             isActive: { type: 'boolean' },
             createdAt: { type: 'string', format: 'date-time' },

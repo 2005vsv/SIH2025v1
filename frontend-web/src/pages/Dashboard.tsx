@@ -12,9 +12,11 @@ import {
     Trophy,
     User
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { analyticsAPI, feeAPI, libraryAPI, notificationAPI } from '../services/api';
 
 interface DashboardStats {
   totalFees: number;
@@ -38,52 +40,85 @@ interface RecentActivity {
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  
-  const [stats] = useState<DashboardStats>({
-    totalFees: 75000,
-    pendingFees: 25000,
-    attendancePercentage: 87,
-    cgpa: 8.6,
-    totalCredits: 152,
-    currentSemester: 6,
-    booksIssued: 3,
-    upcomingExams: 4
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalFees: 0,
+    pendingFees: 0,
+    attendancePercentage: 0,
+    cgpa: 0,
+    totalCredits: 0,
+    currentSemester: 0,
+    booksIssued: 0,
+    upcomingExams: 0
   });
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [fees, setFees] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
-  const [recentActivities] = useState<RecentActivity[]>([
-    {
-      id: '1',
-      type: 'fee',
-      title: 'Fee Payment Due',
-      description: 'Semester fee payment due on Sept 30, 2025',
-      date: '2025-09-20',
-      status: 'warning'
-    },
-    {
-      id: '2',
-      type: 'grade',
-      title: 'New Grade Posted',
-      description: 'Machine Learning Assignment - Grade: A+',
-      date: '2025-09-19',
-      status: 'success'
-    },
-    {
-      id: '3',
-      type: 'library',
-      title: 'Book Return Reminder',
-      description: 'Return "Clean Code" by Sept 25, 2025',
-      date: '2025-09-18',
-      status: 'info'
-    },
-    {
-      id: '4',
-      type: 'attendance',
-      title: 'Attendance Alert',
-      description: 'Database Systems attendance: 72% (Below 75%)',
-      date: '2025-09-17',
-      status: 'warning'
-    }
-  ]);
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch user fees
+        if (user?.role === 'student') {
+          const feesResponse = await feeAPI.getMy();
+          const userFees = feesResponse.data.data.fees || [];
+          setFees(userFees);
+          
+          // Calculate fee stats
+          const totalFees = userFees.reduce((sum: number, fee: any) => sum + fee.amount, 0);
+          const pendingFees = userFees
+            .filter((fee: any) => fee.status === 'pending')
+            .reduce((sum: number, fee: any) => sum + fee.amount, 0);
+          
+          setStats(prev => ({
+            ...prev,
+            totalFees,
+            pendingFees,
+            currentSemester: user.profile?.semester || 6,
+            attendancePercentage: 87, // Mock data for now
+            cgpa: 8.6, // Mock data for now
+            totalCredits: 152, // Mock data for now
+            upcomingExams: 4 // Mock data for now
+          }));
+        }
+
+        // Fetch notifications
+        const notificationsResponse = await notificationAPI.getMy({ limit: 5 });
+        const userNotifications = notificationsResponse.data.data.notifications || [];
+        setNotifications(userNotifications);
+
+        // Convert notifications to recent activities
+        const activities: RecentActivity[] = userNotifications.map((notification: any) => ({
+          id: notification._id,
+          type: 'announcement',
+          title: notification.title,
+          description: notification.message,
+          date: new Date(notification.createdAt).toLocaleDateString(),
+          status: notification.isRead ? 'info' : 'warning'
+        }));
+
+        setRecentActivities(activities);
+
+      } catch (error: any) {
+        console.error('Failed to fetch dashboard data:', error);
+        toast.error('Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   const quickActions = [
     {

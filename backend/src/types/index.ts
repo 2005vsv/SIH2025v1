@@ -4,7 +4,7 @@ export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     email: string;
-    role: 'student' | 'admin';
+    role: 'student' | 'admin' | 'faculty';
     studentId?: string;
   };
 }
@@ -12,7 +12,7 @@ export interface AuthenticatedRequest extends Request {
 export interface JWTPayload {
   id: string;
   email: string;
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'faculty';
   studentId?: string;
 }
 
@@ -48,7 +48,7 @@ export interface UserDocument {
   email: string;
   password: string;
   name: string;
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'faculty';
   studentId?: string;
   isActive: boolean;
   profile?: {

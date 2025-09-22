@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: student-portal-db
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: studentportal
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./backend/src/utils/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - student-portal-network
+
+  # Backend API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: student-portal-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/studentportal?authSource=admin
+      JWT_SECRET: your_super_secret_jwt_key_change_in_production
+      JWT_REFRESH_SECRET: your_super_secret_refresh_key_change_in_production
+      FRONTEND_STUDENT_URL: http://localhost:3000
+      FRONTEND_ADMIN_URL: http://localhost:3001
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: your_email@gmail.com
+      SMTP_PASS: your_app_password
+      TWILIO_ACCOUNT_SID: your_twilio_account_sid
+      TWILIO_AUTH_TOKEN: your_twilio_auth_token
+      TWILIO_PHONE_NUMBER: +1234567890
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/logs:/app/logs
+    depends_on:
+      - mongodb
+    networks:
+      - student-portal-network
+
+  # Student Frontend
+  frontend-student:
+    build:
+      context: ./frontend-student
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:5000/api
+        VITE_ADMIN_URL: http://localhost:3001
+    container_name: student-portal-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - student-portal-network
+
+  # Admin Frontend
+  frontend-admin:
+    build:
+      context: ./frontend-admin
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:5000/api
+        VITE_STUDENT_URL: http://localhost:3000
+    container_name: student-portal-admin
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+    networks:
+      - student-portal-network
+
+  # Redis for session management and caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: student-portal-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - student-portal-network
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  student-portal-network:
+    driver: bridge
+
+# Health checks can be added for production
+# healthcheck:
+#   test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+#   interval: 30s
+#   timeout: 10s
+#   retries: 3
+#   start_period: 40s
