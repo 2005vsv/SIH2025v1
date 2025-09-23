@@ -2,7 +2,7 @@ import compression from 'compression';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
-import rateLimit from 'express-rate-limit';
+// import rateLimit from 'express-rate-limit'; // Disabled for development
 import helmet from 'helmet';
 // import morgan from 'morgan';
 import path from 'path';
@@ -95,24 +95,21 @@ if (process.env.NODE_ENV !== 'test') {
   // }));
 }
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-  message: {
-    success: false,
-    message: 'Too many requests from this IP, please try again later.',
-    retryAfter: Math.ceil(parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000') / 1000)
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.ip || req.connection.remoteAddress || 'unknown';
-  },
-});
+// Rate limiting - COMPLETELY DISABLED FOR DEVELOPMENT
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('Rate limiting DISABLED for development');
 
-// Apply rate limiting to API routes only
-app.use('/api/', limiter);
+// Development bypass middleware - remove rate limit headers
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    // Remove any rate limit headers
+    res.removeHeader('X-RateLimit-Limit');
+    res.removeHeader('X-RateLimit-Remaining');
+    res.removeHeader('X-RateLimit-Reset');
+    res.removeHeader('Retry-After');
+    next();
+  });
+}
 
 // Body parser middleware
 app.use(express.json({ 

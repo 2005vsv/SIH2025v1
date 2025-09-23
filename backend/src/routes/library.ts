@@ -1,14 +1,15 @@
 import express from 'express';
 import {
-  getBooks,
-  getBookById,
-  createBook,
-  updateBook,
-  deleteBook,
-  borrowBook,
-  returnBook,
-  getBorrowHistory,
-  getLibraryStats,
+    borrowBook,
+    createBook,
+    deleteBook,
+    getBookById,
+    getBookQR,
+    getBooks,
+    getBorrowHistory,
+    getLibraryStats,
+    returnBook,
+    updateBook,
 } from '../controllers/libraryController';
 import { auth } from '../middleware/auth';
 import { requireRole } from '../middleware/roleCheck';
@@ -24,6 +25,9 @@ router.get('/stats', auth, getLibraryStats);
 // Get book by ID
 router.get('/books/:id', auth, getBookById);
 
+// Get QR code for book
+router.get('/books/:id/qr', auth, getBookQR);
+
 // Create book (Admin only)
 router.post('/books', auth, requireRole('admin'), createBook);
 
@@ -34,12 +38,12 @@ router.put('/books/:id', auth, requireRole('admin'), updateBook);
 router.delete('/books/:id', auth, requireRole('admin'), deleteBook);
 
 // Borrow book
-router.post('/books/:id/borrow', auth, borrowBook);
+router.post('/borrow', auth, borrowBook);
 
 // Return book
-router.post('/borrow/:id/return', auth, returnBook);
+router.post('/return', auth, returnBook);
 
 // Get borrow history
-router.get('/borrow-history', auth, getBorrowHistory);
+router.get('/history', auth, getBorrowHistory);
 
 export default router;

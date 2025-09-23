@@ -1,17 +1,19 @@
 import express from 'express';
 import {
-  getHostelRooms,
-  getRoomById,
-  createRoom,
-  updateRoom,
-  deleteRoom,
-  getAllocations,
-  requestAllocation,
-  updateAllocationStatus,
-  getServiceRequests,
-  createServiceRequest,
-  updateServiceRequest,
-  getHostelStats,
+    createChangeRequest,
+    createRoom,
+    createServiceRequest,
+    deleteRoom,
+    getAllocations,
+    getHostelRooms,
+    getHostelStats,
+    getMyRoom,
+    getRoomById,
+    getServiceRequests,
+    requestAllocation,
+    updateAllocationStatus,
+    updateRoom,
+    updateServiceRequest,
 } from '../controllers/hostelController';
 import { auth } from '../middleware/auth';
 import { requireRole } from '../middleware/roleCheck';
@@ -23,6 +25,9 @@ router.get('/rooms', auth, getHostelRooms);
 
 // Get hostel statistics
 router.get('/stats', auth, getHostelStats);
+
+// Get my allocated room (Student)
+router.get('/my-room', auth, getMyRoom);
 
 // Get room by ID
 router.get('/rooms/:id', auth, getRoomById);
@@ -41,6 +46,9 @@ router.get('/allocations', auth, getAllocations);
 
 // Request allocation
 router.post('/allocations', auth, requestAllocation);
+
+// Request room change
+router.post('/change-request', auth, createChangeRequest);
 
 // Update allocation status (Admin only)
 router.put('/allocations/:id', auth, requireRole('admin'), updateAllocationStatus);

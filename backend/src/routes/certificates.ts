@@ -1,14 +1,29 @@
 import express from 'express';
+import {
+    createCertificate,
+    deleteCertificate,
+    downloadCertificate,
+    getAllCertificates,
+    getCertificateById,
+    updateCertificate,
+    verifyCertificate,
+} from '../controllers/certificateController';
 import { auth } from '../middleware/auth';
+import { requireRole } from '../middleware/roleCheck';
 
 const router = express.Router();
 
-router.post('/issue', auth, (req, res) => {
-  res.json({ success: true, message: 'Certificate issued', data: { hash: 'abc123', qrCode: 'data:image/png;base64,...' } });
-});
+// Student routes
+router.get('/', auth, getAllCertificates);
+router.get('/:id', auth, getCertificateById);
+router.get('/:id/download', auth, downloadCertificate);
+router.post('/', auth, createCertificate);
 
-router.get('/verify/:id', (req, res) => {
-  res.json({ success: true, message: 'Certificate verified', data: { valid: true } });
-});
+// Admin routes
+router.put('/:id', auth, requireRole('admin'), updateCertificate);
+router.delete('/:id', auth, requireRole('admin'), deleteCertificate);
+
+// Public routes
+router.post('/verify', verifyCertificate);
 
 export default router;

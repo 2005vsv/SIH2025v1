@@ -308,6 +308,15 @@ export const getProfile = async (
       return;
     }
 
+    // Debug: Log user profile data
+    console.log('getProfile - User data:', {
+      id: user._id,
+      email: user.email,
+      cgpa: user.profile?.cgpa,
+      sgpa: user.profile?.sgpa,
+      profile: user.profile
+    });
+
     const response: ApiResponse = {
       success: true,
       message: 'Profile retrieved successfully',

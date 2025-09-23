@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import HostelRoom from '../models/HostelRoom';
-import HostelAllocation from '../models/HostelAllocation';
-import HostelServiceRequest from '../models/HostelServiceRequest';
 import { AuthenticatedRequest } from '../middleware/roleCheck';
+import HostelAllocation from '../models/HostelAllocation';
+import HostelRoom from '../models/HostelRoom';
+import HostelServiceRequest from '../models/HostelServiceRequest';
 
 // Get all hostel rooms
 export const getHostelRooms = async (req: Request, res: Response): Promise<void> => {
@@ -509,6 +509,99 @@ export const getHostelStats = async (req: Request, res: Response): Promise<void>
       success: false,
       message: 'Failed to fetch hostel statistics',
       error: process.env.NODE_ENV === 'development' ? error : undefined,
+    });
+  }
+};
+
+// Get my allocated room (Student)
+export const getMyRoom = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    
+    const allocation = await HostelAllocation.findOne({
+      studentId: userId,
+      status: 'approved'
+    }).populate('roomId');
+
+    if (!allocation) {
+      res.status(404).json({
+        success: false,
+        message: 'No room allocation found'
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: { allocation }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch room allocation',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
+  }
+};
+
+// Create room change request
+export const createChangeRequest = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const { reason, preferredRoomId } = req.body;
+
+    // Check if user has an active allocation
+    const currentAllocation = await HostelAllocation.findOne({
+      studentId: userId,
+      status: 'approved'
+    });
+
+    if (!currentAllocation) {
+      res.status(400).json({
+        success: false,
+        message: 'No active room allocation found'
+      });
+      return;
+    }
+
+    // Check if there's already a pending change request
+    const existingRequest = await HostelServiceRequest.findOne({
+      studentId: userId,
+      type: 'room_change',
+      status: 'pending'
+    });
+
+    if (existingRequest) {
+      res.status(400).json({
+        success: false,
+        message: 'You already have a pending room change request'
+      });
+      return;
+    }
+
+    const changeRequest = new HostelServiceRequest({
+      studentId: userId,
+      type: 'room_change',
+      description: reason,
+      priority: 'medium',
+      status: 'pending',
+      requestedRoom: preferredRoomId,
+      currentRoom: currentAllocation.roomId
+    });
+
+    await changeRequest.save();
+    await changeRequest.populate(['studentId', 'requestedRoom', 'currentRoom']);
+
+    res.status(201).json({
+      success: true,
+      message: 'Room change request submitted successfully',
+      data: { changeRequest }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create room change request',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
     });
   }
 };

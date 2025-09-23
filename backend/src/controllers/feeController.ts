@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/roleCheck';
 import Fee from '../models/Fee';
 import Transaction from '../models/Transaction';
-import User from '../models/User';
-import { AuthenticatedRequest } from '../middleware/roleCheck';
 
 // Get all fees for current user (Student) or all fees (Admin)
 export const getFees = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -299,6 +298,128 @@ export const getFeeSummary = async (req: AuthenticatedRequest, res: Response): P
     res.status(500).json({
       success: false,
       message: 'Failed to fetch fee summary',
+      error: process.env.NODE_ENV === 'development' ? error : undefined,
+    });
+  }
+};
+
+// Get payment history
+export const getPaymentHistory = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { page = 1, limit = 10, status, fromDate, toDate } = req.query;
+    const isAdmin = req.user?.role === 'admin';
+    
+    const query: any = { status: 'completed' };
+    
+    // Students can only see their own payment history
+    if (!isAdmin) {
+      const userFees = await Fee.find({ userId: req.user?.id }).select('_id');
+      const feeIds = userFees.map(fee => fee._id);
+      query.feeId = { $in: feeIds };
+    }
+    
+    if (status) query.status = status;
+    if (fromDate || toDate) {
+      query.createdAt = {};
+      if (fromDate) query.createdAt.$gte = new Date(fromDate as string);
+      if (toDate) query.createdAt.$lte = new Date(toDate as string);
+    }
+
+    const options = {
+      page: parseInt(page as string),
+      limit: parseInt(limit as string),
+      sort: '-createdAt',
+    };
+
+    const payments = await Transaction.find(query)
+      .populate('feeId', 'feeType description amount')
+      .populate('userId', 'name email studentId')
+      .sort(options.sort)
+      .limit(options.limit * options.page)
+      .skip((options.page - 1) * options.limit);
+
+    const total = await Transaction.countDocuments(query);
+
+    res.json({
+      success: true,
+      data: {
+        payments,
+        pagination: {
+          current: options.page,
+          pages: Math.ceil(total / options.limit),
+          total,
+          limit: options.limit,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payment history',
+      error: process.env.NODE_ENV === 'development' ? error : undefined,
+    });
+  }
+};
+
+// Get payment receipt
+export const getPaymentReceipt = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const isAdmin = req.user?.role === 'admin';
+    
+    const payment = await Transaction.findById(id)
+      .populate('feeId', 'feeType description amount dueDate')
+      .populate('userId', 'name email studentId profile.department');
+
+    if (!payment) {
+      res.status(404).json({
+        success: false,
+        message: 'Payment not found',
+      });
+      return;
+    }
+
+    // Students can only access their own receipts
+    if (!isAdmin && payment.userId._id.toString() !== req.user?.id) {
+      res.status(403).json({
+        success: false,
+        message: 'Access denied',
+      });
+      return;
+    }
+
+    // Generate receipt data
+    const receipt = {
+      receiptNumber: `RCP-${payment._id}`,
+      paymentDate: payment.createdAt,
+      student: {
+        name: (payment.userId as any).name,
+        email: (payment.userId as any).email,
+        studentId: (payment.userId as any).studentId,
+        department: (payment.userId as any).profile?.department,
+      },
+      fee: {
+        type: (payment.feeId as any).feeType,
+        description: (payment.feeId as any).description,
+        amount: payment.amount,
+        dueDate: (payment.feeId as any).dueDate,
+      },
+      payment: {
+        method: payment.paymentMethod,
+        transactionId: payment.transactionId,
+        status: payment.status,
+        paidAt: payment.createdAt,
+      },
+    };
+
+    res.json({
+      success: true,
+      data: { receipt },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate receipt',
       error: process.env.NODE_ENV === 'development' ? error : undefined,
     });
   }

@@ -10,6 +10,8 @@ export const userValidation = {
       department: Joi.string().max(100).trim(),
       semester: Joi.number().integer().min(1).max(8),
       admissionYear: Joi.number().integer().min(1990).max(new Date().getFullYear()),
+      cgpa: Joi.number().min(0).max(10),
+      sgpa: Joi.number().min(0).max(10),
     }),
   }),
 
@@ -26,6 +28,8 @@ export const userValidation = {
       department: Joi.string().max(100).trim(),
       semester: Joi.number().integer().min(1).max(8),
       admissionYear: Joi.number().integer().min(1990).max(new Date().getFullYear()),
+      cgpa: Joi.number().min(0).max(10),
+      sgpa: Joi.number().min(0).max(10),
     }),
   }),
 
@@ -42,6 +46,8 @@ export const userValidation = {
       department: Joi.string().max(100).trim(),
       semester: Joi.number().integer().min(1).max(8),
       admissionYear: Joi.number().integer().min(1990).max(new Date().getFullYear()),
+      cgpa: Joi.number().min(0).max(10).default(0),
+      sgpa: Joi.number().min(0).max(10).default(0),
     }),
   }),
 

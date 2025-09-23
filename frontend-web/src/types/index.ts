@@ -11,6 +11,8 @@ export interface User {
     department?: string;
     semester?: number;
     admissionYear?: number;
+    cgpa?: number;
+    sgpa?: number;
   };
   gamification?: {
     points: number;

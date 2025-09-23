@@ -72,6 +72,54 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
+// Create a new user (Admin only)
+export const createUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userData = req.body;
+
+    // Check if user with email already exists
+    const existingUser = await User.findOne({ email: userData.email });
+    if (existingUser) {
+      res.status(400).json({
+        success: false,
+        message: 'User with this email already exists',
+      });
+      return;
+    }
+
+    // Check if studentId is provided and already exists
+    if (userData.studentId) {
+      const existingStudentId = await User.findOne({ studentId: userData.studentId });
+      if (existingStudentId) {
+        res.status(400).json({
+          success: false,
+          message: 'User with this student ID already exists',
+        });
+        return;
+      }
+    }
+
+    // Create new user
+    const user = new User(userData);
+    await user.save();
+
+    // Remove password from response
+    const userResponse = await User.findById(user._id).select('-password');
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      data: { user: userResponse },
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: 'Failed to create user',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
 // Get current user profile
 export const getProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -172,6 +220,14 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
     const { id } = req.params;
     const updates = req.body;
 
+    // Debug: Log the update data
+    console.log('updateUser - Received updates:', {
+      id,
+      updates,
+      cgpa: updates.profile?.cgpa,
+      sgpa: updates.profile?.sgpa
+    });
+
     // Don't allow password updates through this endpoint
     delete updates.password;
 
@@ -188,6 +244,14 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       });
       return;
     }
+
+    // Debug: Log the updated user
+    console.log('updateUser - Updated user:', {
+      id: user._id,
+      cgpa: user.profile?.cgpa,
+      sgpa: user.profile?.sgpa,
+      profile: user.profile
+    });
 
     res.json({
       success: true,

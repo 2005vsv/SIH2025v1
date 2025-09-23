@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Subject {
   id: string;
@@ -13,6 +14,7 @@ interface Subject {
 }
 
 const Grades: React.FC = () => {
+  const { user } = useAuth();
   const [selectedSemester] = useState<number>(6);
   const [subjects] = useState<Subject[]>([
     { id: '1', name: 'Database Management Systems', code: 'CS601', credits: 4, grade: 'A+', gradePoint: 10, semester: 6, type: 'core' },
@@ -22,8 +24,8 @@ const Grades: React.FC = () => {
     { id: '5', name: 'Project Work', code: 'CS691', credits: 2, grade: 'A+', gradePoint: 10, semester: 6, type: 'lab' }
   ]);
 
-  const cgpa = 8.5;
-  const sgpa = 9.6;
+  const cgpa = user?.profile?.cgpa || 0;
+  const sgpa = user?.profile?.sgpa || 0;
 
   const getGradeColor = (grade: string) => {
     switch (grade) {

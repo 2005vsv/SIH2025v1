@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   BookOpen,
   Calendar,
@@ -36,6 +37,7 @@ interface DashboardStats {
   currentSemester: number;
   attendancePercentage: number;
   cgpa: number;
+  sgpa: number;
   totalCredits: number;
   upcomingExams: number;
   borrowedBooks: number;
@@ -66,13 +68,14 @@ interface Notification {
 }
 
 const StudentDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalFees: 0,
     pendingFees: 0,
-    currentSemester: 6,
+    currentSemester: 1, // Start with default 1 instead of 6
     attendancePercentage: 87,
-    cgpa: 8.6,
+    cgpa: 0, // Start with 0 instead of hardcoded value
+    sgpa: 0, // Start with 0 instead of hardcoded value
     totalCredits: 152,
     upcomingExams: 4,
     borrowedBooks: 2,
@@ -90,9 +93,86 @@ const StudentDashboard: React.FC = () => {
     fetchDashboardData();
   }, [user]);
 
+  // Set initial data from user context when available
+  useEffect(() => {
+    if (user?.profile) {
+      console.log('Dashboard - Setting initial data from user context:', user.profile);
+      setStats(prev => ({
+        ...prev,
+        cgpa: user.profile?.cgpa ?? 0,
+        sgpa: user.profile?.sgpa ?? 0,
+        currentSemester: user.profile?.semester ?? 1
+      }));
+    }
+  }, [user?.profile?.cgpa, user?.profile?.sgpa, user?.profile?.semester]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('Dashboard - No token found for profile fetch');
+        return;
+      }
+
+      console.log('Dashboard - Fetching user profile for CGPA/SGPA/Semester...');
+      const response = await fetch('http://localhost:5000/api/users/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('Dashboard - Fresh profile data:', userData);
+        
+        if (userData.user && userData.user.profile) {
+          const profileCgpa = userData.user.profile.cgpa !== undefined ? userData.user.profile.cgpa : 0;
+          const profileSgpa = userData.user.profile.sgpa !== undefined ? userData.user.profile.sgpa : 0;
+          const profileSemester = userData.user.profile.semester !== undefined ? userData.user.profile.semester : 1;
+          
+          console.log('Dashboard - Updating stats with fresh data:');
+          console.log('  - CGPA:', profileCgpa);
+          console.log('  - SGPA:', profileSgpa);
+          console.log('  - Semester:', profileSemester);
+          
+          // Update stats
+          setStats(prev => ({
+            ...prev,
+            cgpa: profileCgpa,
+            sgpa: profileSgpa,
+            currentSemester: profileSemester
+          }));
+
+          // Also update the user context with fresh profile data
+          if (updateUser) {
+            updateUser({
+              ...userData.user,
+              profile: {
+                ...userData.user.profile,
+                cgpa: profileCgpa,
+                sgpa: profileSgpa,
+                semester: profileSemester
+              }
+            });
+          }
+        } else {
+          console.log('Dashboard - No profile data found in response');
+        }
+      } else {
+        console.error('Dashboard - Failed to fetch profile:', response.status);
+      }
+    } catch (profileError) {
+      console.error('Dashboard - Error fetching profile:', profileError);
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+
+      // First, fetch fresh user profile data to ensure we have the latest CGPA/SGPA/Semester
+      await fetchUserProfile();
 
       // Fetch user fees
       if (user?.role === 'student') {
@@ -306,7 +386,11 @@ const StudentDashboard: React.FC = () => {
                     </span>
                     <span className="flex items-center">
                       <Star className="w-4 h-4 mr-1" />
-                      CGPA {stats.cgpa}
+                      CGPA {stats.cgpa.toFixed(2)}
+                    </span>
+                    <span className="flex items-center">
+                      <Award className="w-4 h-4 mr-1" />
+                      SGPA {stats.sgpa.toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -575,22 +659,41 @@ const StudentDashboard: React.FC = () => {
             <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Quick Actions</h2>
               <div className="space-y-4">
-                <button className="w-full flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                <Link 
+                  to="/fees" 
+                  className="w-full flex items-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                >
                   <CreditCard className="w-6 h-6 text-blue-600 mr-3" />
                   <span className="font-medium text-gray-900">Pay Fees</span>
-                </button>
-                <button className="w-full flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                </Link>
+                <Link 
+                  to="/library" 
+                  className="w-full flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                >
                   <BookOpen className="w-6 h-6 text-purple-600 mr-3" />
                   <span className="font-medium text-gray-900">Browse Library</span>
-                </button>
-                <button className="w-full flex items-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                </Link>
+                <Link 
+                  to="/grades" 
+                  className="w-full flex items-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                >
                   <Calendar className="w-6 h-6 text-green-600 mr-3" />
-                  <span className="font-medium text-gray-900">View Timetable</span>
-                </button>
-                <button className="w-full flex items-center p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
-                  <Award className="w-6 h-6 text-orange-600 mr-3" />
-                  <span className="font-medium text-gray-900">Job Applications</span>
-                </button>
+                  <span className="font-medium text-gray-900">View Exams & Grades</span>
+                </Link>
+                <Link 
+                  to="/hostel" 
+                  className="w-full flex items-center p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
+                >
+                  <Home className="w-6 h-6 text-orange-600 mr-3" />
+                  <span className="font-medium text-gray-900">Hostel Services</span>
+                </Link>
+                <Link 
+                  to="/profile" 
+                  className="w-full flex items-center p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                >
+                  <User className="w-6 h-6 text-indigo-600 mr-3" />
+                  <span className="font-medium text-gray-900">My Profile</span>
+                </Link>
               </div>
 
               {/* Quick Stats Summary */}

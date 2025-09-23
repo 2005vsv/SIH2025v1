@@ -53,7 +53,7 @@ const router = express.Router();
  *                       items:
  *                         type: string
  */
-router.post('/query', auth, async (req, res) => {
+router.post('/message', auth, async (req, res) => {
   try {
     const { message, context } = req.body;
     
@@ -121,7 +121,7 @@ router.post('/query', auth, async (req, res) => {
  *       200:
  *         description: Chat history retrieved successfully
  */
-router.get('/history', auth, async (req, res) => {
+router.get('/conversations', auth, async (req, res) => {
   try {
     const { limit = 20 } = req.query;
     

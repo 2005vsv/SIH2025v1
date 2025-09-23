@@ -15,6 +15,8 @@ export interface IUser extends Document {
     department?: string;
     semester?: number;
     admissionYear?: number;
+    cgpa?: number;
+    sgpa?: number;
   };
   gamification?: {
     points: number;
@@ -86,6 +88,18 @@ const UserSchema = new Schema<IUser>({
       type: Number,
       min: 1990,
       max: new Date().getFullYear(),
+    },
+    cgpa: {
+      type: Number,
+      min: 0,
+      max: 10,
+      default: 0,
+    },
+    sgpa: {
+      type: Number,
+      min: 0,
+      max: 10,
+      default: 0,
     },
   },
   gamification: {

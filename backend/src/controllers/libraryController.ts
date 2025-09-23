@@ -1,7 +1,9 @@
+
 import { Request, Response } from 'express';
-import BorrowRecord from '../models/BorrowRecord';
-import Book from '../models/Book';
+import QRCode from 'qrcode';
 import { AuthenticatedRequest } from '../middleware/roleCheck';
+import Book from '../models/Book';
+import BorrowRecord from '../models/BorrowRecord';
 
 // Get all books
 export const getBooks = async (req: Request, res: Response): Promise<void> => {
@@ -389,5 +391,21 @@ export const getLibraryStats = async (req: Request, res: Response): Promise<void
       message: 'Failed to fetch library statistics',
       error: process.env.NODE_ENV === 'development' ? error : undefined,
     });
+  }
+};
+
+export const getBookQR = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const book = await Book.findById(id);
+    if (!book) {
+      res.status(404).json({ success: false, message: 'Book not found' });
+      return;
+    }
+    const qrData = JSON.stringify({ bookId: book._id, title: book.title, isbn: book.isbn });
+    const qrImage = await QRCode.toDataURL(qrData);
+    res.json({ success: true, data: { qrImage } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to generate QR code', error: process.env.NODE_ENV === 'development' ? error : undefined });
   }
 };

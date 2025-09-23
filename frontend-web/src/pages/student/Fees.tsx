@@ -15,13 +15,17 @@ import {
   History,
   Eye,
   ArrowRight,
+  ArrowLeft,
   Wallet,
   CreditCard as Card
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { feeAPI } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import BackButton from '../../components/BackButton';
 
 interface Fee {
   _id: string;
@@ -54,6 +58,8 @@ interface PaymentModal {
 }
 
 const StudentFees: React.FC = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
   const [fees, setFees] = useState<Fee[]>([]);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,22 +69,127 @@ const StudentFees: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dues' | 'history'>('dues');
   const [paymentModal, setPaymentModal] = useState<PaymentModal>({ isOpen: false, fee: null });
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'upi' | 'netbanking' | 'wallet'>('card');
+  const [isUsingMockData, setIsUsingMockData] = useState(false);
 
   useEffect(() => {
+    // Check authentication first
+    if (!isAuthenticated) {
+      toast.error('Please login to view fees');
+      navigate('/login');
+      return;
+    }
+    
     fetchFees();
     fetchPaymentHistory();
-  }, []);
+  }, [isAuthenticated, navigate]);
 
   const fetchFees = async () => {
     try {
       setLoading(true);
+      console.log('Fetching fees...');
+      
+      // Check authentication
+      const token = localStorage.getItem('accessToken');
+      const user = localStorage.getItem('user');
+      console.log('Token exists:', !!token);
+      console.log('User exists:', !!user);
+      
+      if (!token) {
+        console.error('No access token found');
+        toast.error('Please login to view fees');
+        return;
+      }
+      
       const response = await feeAPI.getMy();
+      console.log('Fees API response:', response.data);
       if (response.data.success) {
         setFees(response.data.data.fees || []);
+        setIsUsingMockData(false);
+        console.log('Fees set from API:', response.data.data.fees);
+        toast.success('Fees loaded successfully from server');
+      } else {
+        console.error('API returned success: false', response.data);
+        // Fallback to mock data for development
+        const mockFees: Fee[] = [
+          {
+            _id: '1',
+            feeType: 'tuition',
+            amount: 45000,
+            description: 'Semester 6 Tuition Fee',
+            dueDate: '2024-12-31',
+            status: 'pending',
+            semester: 6,
+            academicYear: '2024-25'
+          },
+          {
+            _id: '2',
+            feeType: 'hostel',
+            amount: 15000,
+            description: 'Hostel Fee for December',
+            dueDate: '2024-12-15',
+            status: 'paid',
+            paidAt: '2024-11-10',
+            paidAmount: 15000,
+            transactionId: 'TXN123456789'
+          },
+          {
+            _id: '3',
+            feeType: 'library',
+            amount: 2000,
+            description: 'Library Fine',
+            dueDate: '2024-11-30',
+            status: 'overdue'
+          }
+        ];
+        setFees(mockFees);
+        setIsUsingMockData(true);
+        toast.error(response.data.message || 'Failed to load fees - using mock data');
       }
     } catch (error) {
       console.error('Error fetching fees:', error);
-      toast.error('Failed to load fees');
+      // Fallback to mock data for development
+      const mockFees: Fee[] = [
+        {
+          _id: '1',
+          feeType: 'tuition',
+          amount: 45000,
+          description: 'Semester 6 Tuition Fee',
+          dueDate: '2024-12-31',
+          status: 'pending',
+          semester: 6,
+          academicYear: '2024-25'
+        },
+        {
+          _id: '2',
+          feeType: 'hostel',
+          amount: 15000,
+          description: 'Hostel Fee for December',
+          dueDate: '2024-12-15',
+          status: 'paid',
+          paidAt: '2024-11-10',
+          paidAmount: 15000,
+          transactionId: 'TXN123456789'
+        },
+        {
+          _id: '3',
+          feeType: 'library',
+          amount: 2000,
+          description: 'Library Fine',
+          dueDate: '2024-11-30',
+          status: 'overdue'
+        },
+        {
+          _id: '4',
+          feeType: 'examination',
+          amount: 5000,
+          description: 'Semester End Examination Fee',
+          dueDate: '2024-12-01',
+          status: 'pending'
+        }
+      ];
+      setFees(mockFees);
+      setIsUsingMockData(true);
+      toast.error('Failed to connect to server - using mock data');
     } finally {
       setLoading(false);
     }
@@ -213,8 +324,22 @@ const StudentFees: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
+          <BackButton className="mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Fee Management</h1>
           <p className="text-gray-600">Manage your fees, make payments, and view transaction history</p>
+          
+          {/* Mock Data Indicator */}
+          {isUsingMockData && (
+            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 mr-2" />
+                <p className="text-yellow-800 text-sm">
+                  <span className="font-medium">Development Mode:</span> Currently showing mock data. 
+                  Please ensure you're logged in and the backend server is running to see real data.
+                </p>
+              </div>
+            </div>
+          )}
         </motion.div>
 
         {/* Stats Cards */}

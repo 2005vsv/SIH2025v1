@@ -1,29 +1,101 @@
 import { motion } from 'framer-motion';
 import { Calendar, Mail, MapPin, Phone, Save, User } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 const Profile: React.FC = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    phone: '',
-    address: '',
-    department: '',
-    semester: '',
-    admissionYear: '',
+    phone: user?.profile?.phone || '',
+    address: user?.profile?.address || '',
+    department: user?.profile?.department || '',
+    semester: user?.profile?.semester?.toString() || '',
+    admissionYear: user?.profile?.admissionYear?.toString() || '',
+    cgpa: user?.profile?.cgpa?.toString() || '0',
+    sgpa: user?.profile?.sgpa?.toString() || '0',
   });
+
+  // Debug: Log user data
+  console.log('Profile Component - Current user data:', {
+    user,
+    userId: user?.id,
+    email: user?.email,
+    role: user?.role,
+    cgpa: user?.profile?.cgpa,
+    sgpa: user?.profile?.sgpa,
+    profile: user?.profile,
+    fullProfile: JSON.stringify(user?.profile, null, 2)
+  });
+
+  // Fetch latest user profile data on component mount - always fetch for debugging
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (user) {
+        try {
+          setLoading(true);
+          console.log('Profile - Fetching fresh user data...');
+          const response = await api.get('/auth/profile');
+          if (response.data.success) {
+            const userData = response.data.data.user;
+            console.log('Profile - Received fresh user data:', userData);
+            updateUser(userData);
+            
+            // Update form data with fresh user data
+            setFormData({
+              name: userData.name || '',
+              email: userData.email || '',
+              phone: userData.profile?.phone || '',
+              address: userData.profile?.address || '',
+              department: userData.profile?.department || '',
+              semester: userData.profile?.semester?.toString() || '',
+              admissionYear: userData.profile?.admissionYear?.toString() || '',
+              cgpa: userData.profile?.cgpa?.toString() || '0',
+              sgpa: userData.profile?.sgpa?.toString() || '0',
+            });
+          }
+        } catch (error) {
+          console.error('Failed to fetch user profile:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchUserProfile();
+  }, [user?.id, updateUser]);
 
   const handleSave = async () => {
     try {
-      // API call would go here
-      toast.success('Profile updated successfully!');
-      setIsEditing(false);
-    } catch (error) {
-      toast.error('Failed to update profile');
+      setLoading(true);
+      const profileData = {
+        name: formData.name,
+        profile: {
+          phone: formData.phone,
+          address: formData.address,
+          department: formData.department,
+          semester: parseInt(formData.semester) || 1,
+          admissionYear: parseInt(formData.admissionYear) || new Date().getFullYear(),
+          cgpa: parseFloat(formData.cgpa) || 0,
+          sgpa: parseFloat(formData.sgpa) || 0,
+        }
+      };
+      
+      const response = await api.put('/users/profile', profileData);
+      if (response.data.success) {
+        updateUser(response.data.data.user);
+        toast.success('Profile updated successfully!');
+        setIsEditing(false);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update profile');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -187,6 +259,42 @@ const Profile: React.FC = () => {
                           min="2000"
                           max="2030"
                           className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/50 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          CGPA
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.cgpa}
+                          onChange={(e) => setFormData({ ...formData, cgpa: e.target.value })}
+                          disabled={!isEditing}
+                          placeholder="0.00"
+                          min="0"
+                          max="10"
+                          step="0.01"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/50 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          SGPA
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.sgpa}
+                          onChange={(e) => setFormData({ ...formData, sgpa: e.target.value })}
+                          disabled={!isEditing}
+                          placeholder="0.00"
+                          min="0"
+                          max="10"
+                          step="0.01"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white/50 disabled:bg-gray-50 disabled:cursor-not-allowed"
                         />
                       </div>
                     </div>

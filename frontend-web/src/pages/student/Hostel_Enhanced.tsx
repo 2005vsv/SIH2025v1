@@ -32,12 +32,15 @@ import {
   Eye,
   Edit,
   Trash2,
+  ArrowLeft,
   ArrowRight,
   X
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import BackButton from '../../components/BackButton';
 
 interface HostelRoom {
   _id: string;
@@ -103,6 +106,7 @@ interface RoomChangeRequest {
 }
 
 const StudentHostel: React.FC = () => {
+  const navigate = useNavigate();
   const [currentAllocation, setCurrentAllocation] = useState<RoomAllocation | null>(null);
   const [roommates, setRoommates] = useState<Roommate[]>([]);
   const [availableRooms, setAvailableRooms] = useState<HostelRoom[]>([]);
@@ -336,6 +340,7 @@ const StudentHostel: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
+          <BackButton className="mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Hostel Management</h1>
           <p className="text-gray-600">Manage your accommodation, services, and room requests</p>
         </motion.div>

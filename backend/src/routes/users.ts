@@ -40,6 +40,17 @@ router.get('/', auth, requireRole('admin'), userController.getAllUsers);
 
 /**
  * @swagger
+ * /api/users:
+ *   post:
+ *     summary: Create a new user (Admin only)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post('/', auth, requireRole('admin'), validateRequest(userValidation.createUser), userController.createUser);
+
+/**
+ * @swagger
  * /api/users/profile:
  *   get:
  *     summary: Get current user profile

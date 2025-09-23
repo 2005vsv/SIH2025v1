@@ -34,6 +34,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Subject {
   _id: string;
@@ -101,6 +102,7 @@ interface AcademicRecord {
 }
 
 const StudentAcademics: React.FC = () => {
+  const { user, updateUser } = useAuth();
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
   const [examSchedule, setExamSchedule] = useState<ExamSchedule[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -112,13 +114,49 @@ const StudentAcademics: React.FC = () => {
   const [showTranscriptModal, setShowTranscriptModal] = useState(false);
   const [showSubmissionModal, setShowSubmissionModal] = useState<Assignment | null>(null);
 
-  const currentCGPA = 8.5;
-  const currentSGPA = 9.6;
+  // Get current CGPA/SGPA from user profile or default values
+  const currentCGPA = user?.profile?.cgpa ?? 0;
+  const currentSGPA = user?.profile?.sgpa ?? 0;
   const totalCredits = 180;
   const completedCredits = 150;
 
+  const fetchUserProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('Academics - No token found for profile fetch');
+        return;
+      }
+
+      console.log('Academics - Fetching user profile for CGPA/SGPA...');
+      const response = await fetch('http://localhost:5000/api/users/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('Academics - Fresh profile data:', userData);
+        
+        if (userData.user && userData.user.profile) {
+          console.log('Academics - Updating user context with fresh profile data...');
+          // Update the AuthContext with fresh data
+          await updateUser(userData.user);
+        }
+      } else {
+        console.error('Academics - Failed to fetch profile:', response.status);
+      }
+    } catch (error) {
+      console.error('Academics - Error fetching user profile:', error);
+    }
+  };
+
   useEffect(() => {
     fetchAcademicData();
+    // Fetch fresh profile data when component mounts
+    fetchUserProfile();
   }, []);
 
   const fetchAcademicData = async () => {

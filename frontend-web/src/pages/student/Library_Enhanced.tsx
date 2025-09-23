@@ -26,8 +26,10 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { libraryAPI } from '../../services/api';
+import BackButton from '../../components/BackButton';
 
 interface BookData {
   _id: string;
@@ -69,6 +71,7 @@ interface QRModal {
 }
 
 const StudentLibrary: React.FC = () => {
+  const navigate = useNavigate();
   const [books, setBooks] = useState<BookData[]>([]);
   const [borrowedBooks, setBorrowedBooks] = useState<BorrowedBook[]>([]);
   const [loading, setLoading] = useState(true);
@@ -245,6 +248,7 @@ const StudentLibrary: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
+          <BackButton className="mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Library Management</h1>
           <p className="text-gray-600">Browse books, manage borrowings, and track your reading history</p>
         </motion.div>

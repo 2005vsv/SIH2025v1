@@ -1,539 +1,529 @@
 import { Request, Response } from 'express';
-import Exam, { IExam } from '../models/Exam';
-import ExamResult, { IExamResult } from '../models/ExamResult';
-import User, { IUser } from '../models/User';
-import { AuthenticatedRequest } from '../types';
+import { AuthenticatedRequest } from '../middleware/roleCheck';
+import Exam from '../models/Exam';
+import ExamResult from '../models/ExamResult';
+import User from '../models/User';
 
-export class APIError extends Error {
-  public statusCode: number;
-  
-  constructor(message: string, statusCode: number = 500) {
-    super(message);
-    this.statusCode = statusCode;
-    this.name = 'APIError';
-  }
-}
+// Student routes
 
-// Create exam (admin only)
-export const createExam = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+// Get exam timetable for student
+export const getExamTimetable = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const examData = req.body;
+    const userId = req.user?.id;
+    const user = await User.findById(userId);
     
-    const exam = new Exam({
-      ...examData,
-      createdBy: req.user?.id
-    });
-    
-    await exam.save();
-    
-    res.status(201).json({
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+      return;
+    }
+
+    const exams = await Exam.find({
+      department: user.profile?.department,
+      semester: user.profile?.semester,
+      status: 'scheduled'
+    }).sort({ date: 1 });
+
+    res.json({
       success: true,
-      message: 'Exam created successfully',
-      data: exam
+      data: { exams }
     });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch exam timetable',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
 
-// Get all exams
-export const getAllExams = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+// Get exam results for student
+export const getExamResults = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      subject, 
-      semester, 
-      status,
-      examType 
-    } = req.query;
-
-    const filter: any = {};
+    const userId = req.user?.id;
     
-    if (subject) filter.subject = { $regex: subject, $options: 'i' };
-    if (semester) filter.semester = semester;
-    if (status) filter.isActive = status === 'active';
-    if (examType) filter.examType = examType;
+    const results = await ExamResult.find({ studentId: userId })
+      .populate('examId', 'title subject date totalMarks')
+      .sort({ createdAt: -1 });
 
-    // Students can only see active exams
-    if (req.user?.role === 'student') {
-      filter.isActive = true;
+    res.json({
+      success: true,
+      data: { results }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch exam results',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
+  }
+};
+
+// Get transcript for student
+export const getTranscript = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    
+    const user = await User.findById(userId);
+    const results = await ExamResult.find({ studentId: userId })
+      .populate('examId', 'title subject semester credits')
+      .sort({ 'examId.semester': 1 });
+
+    // Calculate CGPA and semester-wise GPA
+    let totalCredits = 0;
+    let totalGradePoints = 0;
+    const semesterWiseData: any = {};
+
+    results.forEach((result: any) => {
+      const semester = result.examId.semester;
+      const credits = result.examId.credits || 3;
+      const gradePoints = calculateGradePoints(result.marksObtained, result.examId.totalMarks);
+      
+      if (!semesterWiseData[semester]) {
+        semesterWiseData[semester] = {
+          subjects: [],
+          totalCredits: 0,
+          totalGradePoints: 0
+        };
+      }
+      
+      semesterWiseData[semester].subjects.push({
+        subject: result.examId.subject,
+        credits,
+        grade: calculateGrade(result.marksObtained, result.examId.totalMarks),
+        gradePoints
+      });
+      
+      semesterWiseData[semester].totalCredits += credits;
+      semesterWiseData[semester].totalGradePoints += gradePoints * credits;
+      
+      totalCredits += credits;
+      totalGradePoints += gradePoints * credits;
+    });
+
+    const cgpa = totalCredits > 0 ? totalGradePoints / totalCredits : 0;
+
+    res.json({
+      success: true,
+      data: {
+        student: {
+          name: user?.name,
+          studentId: user?.studentId,
+          department: user?.profile?.department,
+          admissionYear: user?.profile?.admissionYear
+        },
+        cgpa: parseFloat(cgpa.toFixed(2)),
+        totalCredits,
+        semesterWiseData
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate transcript',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
+  }
+};
+
+// Get assignments for student
+export const getAssignments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+      return;
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
-    
-    const exams = await Exam.find(filter)
-      .populate('createdBy', 'name email')
-      .sort({ date: -1 })
-      .skip(skip)
-      .limit(Number(limit));
+    // Mock assignments data - in real app, would have Assignment model
+    const assignments = [
+      {
+        id: '1',
+        title: 'Data Structures Assignment 1',
+        subject: 'Data Structures',
+        description: 'Implement binary search tree operations',
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        maxMarks: 50,
+        status: 'pending',
+        submittedAt: null
+      },
+      {
+        id: '2',
+        title: 'Database Project',
+        subject: 'Database Management',
+        description: 'Design and implement a library management system',
+        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        maxMarks: 100,
+        status: 'submitted',
+        submittedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        marksObtained: 85
+      }
+    ];
 
-    const total = await Exam.countDocuments(filter);
+    res.json({
+      success: true,
+      data: { assignments }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch assignments',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
+  }
+};
+
+// Submit assignment
+export const submitAssignment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { submissionText, fileUrl } = req.body;
+    const userId = req.user?.id;
+
+    // Mock submission - in real app, would save to Assignment model
+    res.json({
+      success: true,
+      message: 'Assignment submitted successfully',
+      data: {
+        assignmentId: id,
+        submittedAt: new Date(),
+        submissionText,
+        fileUrl
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to submit assignment',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
+  }
+};
+
+// Get course content
+export const getCourseContent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+      return;
+    }
+
+    // Mock course content - in real app, would have CourseContent model
+    const courseContent = [
+      {
+        id: '1',
+        subject: 'Data Structures',
+        title: 'Introduction to Arrays',
+        type: 'video',
+        url: '/content/ds-arrays.mp4',
+        description: 'Basic concepts of arrays and their implementation',
+        duration: '45 minutes',
+        uploadedAt: new Date('2024-01-15')
+      },
+      {
+        id: '2',
+        subject: 'Database Management',
+        title: 'SQL Basics',
+        type: 'pdf',
+        url: '/content/sql-basics.pdf',
+        description: 'Introduction to SQL queries and database operations',
+        pages: 25,
+        uploadedAt: new Date('2024-01-20')
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: { courseContent }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch course content',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
+  }
+};
+
+// Admin routes
+
+// Get all exams
+export const getExams = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { page = 1, limit = 10, department, semester, status } = req.query;
+    
+    const query: any = {};
+    if (department) query.department = department;
+    if (semester) query.semester = parseInt(semester as string);
+    if (status) query.status = status;
+
+    const options = {
+      page: parseInt(page as string),
+      limit: parseInt(limit as string),
+      sort: '-date'
+    };
+
+    const exams = await Exam.find(query)
+      .sort(options.sort)
+      .limit(options.limit * options.page)
+      .skip((options.page - 1) * options.limit);
+
+    const total = await Exam.countDocuments(query);
 
     res.json({
       success: true,
       data: {
         exams,
         pagination: {
-          current: Number(page),
-          pages: Math.ceil(total / Number(limit)),
-          total
+          current: options.page,
+          pages: Math.ceil(total / options.limit),
+          total,
+          limit: options.limit
         }
       }
     });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch exams',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
 
 // Get exam by ID
-export const getExamById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getExamById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     
-    const exam = await Exam.findById(id)
-      .populate('createdBy', 'name email');
-
+    const exam = await Exam.findById(id);
+    
     if (!exam) {
-      throw new APIError('Exam not found', 404);
-    }
-
-    // Students can only view active exams
-    if (req.user?.role === 'student' && !exam.isActive) {
-      throw new APIError('Exam not available', 403);
+      res.status(404).json({
+        success: false,
+        message: 'Exam not found'
+      });
+      return;
     }
 
     res.json({
       success: true,
-      data: exam
+      data: { exam }
     });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch exam',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
 
-// Update exam (admin only)
-export const updateExam = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+// Create new exam
+export const createExam = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const exam = new Exam(req.body);
+    await exam.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Exam created successfully',
+      data: { exam }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create exam',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
+  }
+};
+
+// Update exam
+export const updateExam = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
-
-    const exam = await Exam.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    ).populate('createdBy', 'name email');
+    
+    const exam = await Exam.findByIdAndUpdate(id, req.body, {
+      new: true,
+      runValidators: true
+    });
 
     if (!exam) {
-      throw new APIError('Exam not found', 404);
+      res.status(404).json({
+        success: false,
+        message: 'Exam not found'
+      });
+      return;
     }
 
     res.json({
       success: true,
       message: 'Exam updated successfully',
-      data: exam
+      data: { exam }
     });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update exam',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
 
-// Delete exam (admin only)
-export const deleteExam = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+// Delete exam
+export const deleteExam = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-
+    
     const exam = await Exam.findByIdAndDelete(id);
 
     if (!exam) {
-      throw new APIError('Exam not found', 404);
+      res.status(404).json({
+        success: false,
+        message: 'Exam not found'
+      });
+      return;
     }
-
-    // Also delete related exam results
-    await ExamResult.deleteMany({ examId: id });
 
     res.json({
       success: true,
       message: 'Exam deleted successfully'
     });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete exam',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
 
-// Publish exam (admin only)
-export const publishExam = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+// Submit exam result
+export const submitExamResult = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const { results } = req.body; // Array of {studentId, marksObtained}
 
-    const exam = await Exam.findByIdAndUpdate(
-      id,
-      { isActive: true },
-      { new: true }
-    );
-
+    const exam = await Exam.findById(id);
     if (!exam) {
-      throw new APIError('Exam not found', 404);
-    }
-
-    res.json({
-      success: true,
-      message: 'Exam published successfully',
-      data: exam
-    });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
-  }
-};
-
-// Add exam result (admin only)
-export const addExamResult = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const { examId, userId, marksObtained, grade } = req.body;
-
-    // Verify exam exists
-    const exam = await Exam.findById(examId);
-    if (!exam) {
-      throw new APIError('Exam not found', 404);
-    }
-
-    // Verify student exists
-    const student = await User.findById(userId);
-    if (!student || student.role !== 'student') {
-      throw new APIError('Student not found', 404);
-    }
-
-    // Check if result already exists
-    const existingResult = await ExamResult.findOne({ examId, userId });
-    if (existingResult) {
-      throw new APIError('Result already exists for this student and exam', 400);
-    }
-
-    // Calculate percentage
-    const percentage = (marksObtained / exam.totalMarks) * 100;
-
-    const examResult = new ExamResult({
-      examId,
-      userId,
-      marksObtained,
-      grade,
-      percentage,
-      isPublished: false
-    });
-
-    await examResult.save();
-
-    res.status(201).json({
-      success: true,
-      message: 'Exam result added successfully',
-      data: examResult
-    });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
-  }
-};
-
-// Get exam results
-export const getExamResults = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const { 
-      examId, 
-      userId, 
-      semester, 
-      subject,
-      page = 1, 
-      limit = 10 
-    } = req.query;
-
-    const filter: any = {};
-    
-    if (examId) filter.examId = examId;
-
-    // Students can only see their own results
-    if (req.user?.role === 'student') {
-      filter.userId = req.user.id;
-    } else if (userId) {
-      filter.userId = userId;
-    }
-
-    const skip = (Number(page) - 1) * Number(limit);
-    
-    const results = await ExamResult.find(filter)
-      .populate('userId', 'name email studentId')
-      .populate('examId', 'name code examType totalMarks')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit));
-
-    const total = await ExamResult.countDocuments(filter);
-
-    res.json({
-      success: true,
-      data: {
-        results,
-        pagination: {
-          current: Number(page),
-          pages: Math.ceil(total / Number(limit)),
-          total
-        }
-      }
-    });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
-  }
-};
-
-// Update exam result (admin only)
-export const updateExamResult = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    // Calculate percentage if marksObtained is updated
-    if (updateData.marksObtained) {
-      const result = await ExamResult.findById(id).populate('examId');
-      if (result && result.examId) {
-        updateData.percentage = (updateData.marksObtained / (result.examId as any).totalMarks) * 100;
-      }
-    }
-
-    const result = await ExamResult.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    ).populate('userId', 'name email studentId')
-     .populate('examId', 'name code examType totalMarks');
-
-    if (!result) {
-      throw new APIError('Exam result not found', 404);
-    }
-
-    res.json({
-      success: true,
-      message: 'Exam result updated successfully',
-      data: result
-    });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
-  }
-};
-
-// Delete exam result (admin only)
-export const deleteExamResult = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params;
-
-    const result = await ExamResult.findByIdAndDelete(id);
-
-    if (!result) {
-      throw new APIError('Exam result not found', 404);
-    }
-
-    res.json({
-      success: true,
-      message: 'Exam result deleted successfully'
-    });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
-  }
-};
-
-// Get student grade summary
-export const getStudentGradeSummary = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const userId = req.user?.role === 'student' ? req.user.id : req.params.userId;
-
-    if (!userId) {
-      throw new APIError('User ID required', 400);
-    }
-
-    const results = await ExamResult.find({ userId, isPublished: true })
-      .populate('examId', 'name code examType totalMarks department semester')
-      .sort({ createdAt: -1 });
-
-    // Group by semester and department
-    const groupedResults = results.reduce((acc: any, result) => {
-      const exam = result.examId as any;
-      const key = `${exam.department}-${exam.semester}`;
-      
-      if (!acc[key]) {
-        acc[key] = {
-          department: exam.department,
-          semester: exam.semester,
-          exams: [],
-          totalMarks: 0,
-          totalPossible: 0,
-          averagePercentage: 0
-        };
-      }
-
-      acc[key].exams.push(result);
-      acc[key].totalMarks += result.marksObtained;
-      acc[key].totalPossible += exam.totalMarks;
-
-      return acc;
-    }, {});
-
-    // Calculate averages
-    Object.values(groupedResults).forEach((group: any) => {
-      group.averagePercentage = group.totalPossible > 0 
-        ? (group.totalMarks / group.totalPossible * 100).toFixed(2)
-        : 0;
-    });
-
-    const overallStats = {
-      totalExams: results.length,
-      totalMarks: results.reduce((sum, r) => sum + r.marksObtained, 0),
-      totalPossible: results.reduce((sum, r) => sum + (r.examId as any).totalMarks, 0),
-      overallPercentage: 0
-    };
-
-    overallStats.overallPercentage = overallStats.totalPossible > 0
-      ? Number((overallStats.totalMarks / overallStats.totalPossible * 100).toFixed(2))
-      : 0;
-
-    res.json({
-      success: true,
-      data: {
-        userId,
-        semesterWise: Object.values(groupedResults),
-        overall: overallStats
-      }
-    });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
-  }
-};
-
-// Get exam statistics (admin only)
-export const getExamStatistics = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const { examId } = req.params;
-
-    const exam = await Exam.findById(examId);
-    if (!exam) {
-      throw new APIError('Exam not found', 404);
-    }
-
-    const results = await ExamResult.find({ examId })
-      .populate('userId', 'name email studentId');
-
-    if (results.length === 0) {
-      res.json({
-        success: true,
-        data: {
-          exam,
-          statistics: {
-            totalStudents: 0,
-            averageMarks: 0,
-            highestMarks: 0,
-            lowestMarks: 0,
-            passPercentage: 0,
-            gradeDistribution: {}
-          },
-          results: []
-        }
+      res.status(404).json({
+        success: false,
+        message: 'Exam not found'
       });
       return;
     }
 
-    const marks = results.map(r => r.marksObtained);
-    const passMarks = exam.passingMarks;
-    const passedStudents = results.filter(r => r.marksObtained >= passMarks).length;
+    const examResults: any[] = [];
+    for (const result of results) {
+      const examResult = new ExamResult({
+        examId: id,
+        studentId: result.studentId,
+        marksObtained: result.marksObtained,
+        grade: calculateGrade(result.marksObtained, exam.totalMarks),
+        remarks: result.remarks || ''
+      });
+      
+      await examResult.save();
+      examResults.push(examResult);
+    }
 
-    const gradeDistribution = results.reduce((acc: any, result) => {
-      const grade = result.grade;
-      acc[grade] = (acc[grade] || 0) + 1;
-      return acc;
-    }, {});
+    res.json({
+      success: true,
+      message: 'Exam results submitted successfully',
+      data: { results: examResults }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to submit exam results',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
+  }
+};
 
-    const statistics = {
-      totalStudents: results.length,
-      averageMarks: Number((marks.reduce((sum, mark) => sum + mark, 0) / marks.length).toFixed(2)),
-      highestMarks: Math.max(...marks),
-      lowestMarks: Math.min(...marks),
-      passPercentage: Number(((passedStudents / results.length) * 100).toFixed(2)),
-      gradeDistribution
+// Create assignment
+export const createAssignment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Mock assignment creation - in real app, would save to Assignment model
+    const assignment = {
+      id: Date.now().toString(),
+      ...req.body,
+      createdAt: new Date()
     };
 
-    res.json({
+    res.status(201).json({
       success: true,
-      data: {
-        exam,
-        statistics,
-        results: results.sort((a, b) => b.marksObtained - a.marksObtained)
-      }
+      message: 'Assignment created successfully',
+      data: { assignment }
     });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create assignment',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
 
-// Bulk upload exam results (admin only)
-export const bulkUploadResults = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+// Upload course content
+export const uploadCourseContent = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { examId, results } = req.body;
+    // Mock content upload - in real app, would save to CourseContent model
+    const content = {
+      id: Date.now().toString(),
+      ...req.body,
+      uploadedAt: new Date()
+    };
 
-    if (!Array.isArray(results) || results.length === 0) {
-      throw new APIError('Results array is required', 400);
-    }
-
-    const exam = await Exam.findById(examId);
-    if (!exam) {
-      throw new APIError('Exam not found', 404);
-    }
-
-    const uploadResults: any[] = [];
-    const errors: string[] = [];
-
-    for (let i = 0; i < results.length; i++) {
-      try {
-        const { userId, marksObtained, grade } = results[i];
-
-        // Verify student exists
-        const student = await User.findById(userId);
-        if (!student || student.role !== 'student') {
-          errors.push(`Row ${i + 1}: Student not found`);
-          continue;
-        }
-
-        // Check if result already exists
-        const existingResult = await ExamResult.findOne({ examId, userId });
-        if (existingResult) {
-          errors.push(`Row ${i + 1}: Result already exists for student ${student.email}`);
-          continue;
-        }
-
-        // Calculate percentage
-        const percentage = (marksObtained / exam.totalMarks) * 100;
-
-        const examResult = new ExamResult({
-          examId,
-          userId,
-          marksObtained,
-          grade,
-          percentage,
-          isPublished: false
-        });
-
-        await examResult.save();
-        uploadResults.push(examResult);
-
-      } catch (error: any) {
-        errors.push(`Row ${i + 1}: ${error.message}`);
-      }
-    }
-
-    res.json({
+    res.status(201).json({
       success: true,
-      message: `Uploaded ${uploadResults.length} results successfully`,
-      data: {
-        uploaded: uploadResults.length,
-        errors: errors.length,
-        errorDetails: errors
-      }
+      message: 'Course content uploaded successfully',
+      data: { content }
     });
-  } catch (error: any) {
-    throw new APIError(error.message, 400);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload course content',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
+
+// Helper functions
+function calculateGradePoints(marksObtained: number, maxMarks: number): number {
+  const percentage = (marksObtained / maxMarks) * 100;
+  
+  if (percentage >= 90) return 10;
+  if (percentage >= 80) return 9;
+  if (percentage >= 70) return 8;
+  if (percentage >= 60) return 7;
+  if (percentage >= 50) return 6;
+  if (percentage >= 40) return 5;
+  return 0;
+}
+
+function calculateGrade(marksObtained: number, maxMarks: number): string {
+  const percentage = (marksObtained / maxMarks) * 100;
+  
+  if (percentage >= 90) return 'A+';
+  if (percentage >= 80) return 'A';
+  if (percentage >= 70) return 'B+';
+  if (percentage >= 60) return 'B';
+  if (percentage >= 50) return 'C';
+  if (percentage >= 40) return 'D';
+  return 'F';
+}

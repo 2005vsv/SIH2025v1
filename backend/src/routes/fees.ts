@@ -1,17 +1,19 @@
 import express from 'express';
 import {
-  getFees,
-  getFeeById,
-  createFee,
-  updateFee,
-  deleteFee,
-  makePayment,
-  getFeeSummary,
+    createFee,
+    deleteFee,
+    getFeeById,
+    getFees,
+    getFeeSummary,
+    getPaymentHistory,
+    getPaymentReceipt,
+    makePayment,
+    updateFee,
 } from '../controllers/feeController';
 import { auth } from '../middleware/auth';
 import { requireRole } from '../middleware/roleCheck';
 import { validateRequest } from '../middleware/validateRequest';
-import { createFeeSchema, updateFeeSchema, makePaymentSchema } from '../validators/feeValidation';
+import { createFeeSchema, makePaymentSchema, updateFeeSchema } from '../validators/feeValidation';
 
 const router = express.Router();
 
@@ -76,6 +78,9 @@ router.get('/', auth, getFees);
 // Get fee summary
 router.get('/summary', auth, getFeeSummary);
 
+// Get payment history
+router.get('/payments', auth, getPaymentHistory);
+
 // Get fee by ID
 router.get('/:id', auth, getFeeById);
 
@@ -90,5 +95,8 @@ router.delete('/:id', auth, requireRole('admin'), deleteFee);
 
 // Make payment for fee
 router.post('/:id/pay', auth, validateRequest(makePaymentSchema), makePayment);
+
+// Get payment receipt
+router.get('/payments/:id/receipt', auth, getPaymentReceipt);
 
 export default router;

@@ -264,6 +264,22 @@ const AppRoutes: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/grades"
+            element={
+              <ProtectedRoute>
+                {user?.role === 'admin' ? <Navigate to="/admin/academics" /> : <Navigate to="/student/academics" />}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hostel"
+            element={
+              <ProtectedRoute>
+                {user?.role === 'admin' ? <Navigate to="/admin/hostel" /> : <Navigate to="/student/hostel" />}
+              </ProtectedRoute>
+            }
+          />
 
           {/* Default Routes */}
           <Route 
