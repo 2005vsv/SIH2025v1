@@ -28,7 +28,12 @@ mongoose.connect(process.env.MONGODB_URI)
 .then(() => console.log('Connected to MongoDB'))
 .catch((err) => console.error('MongoDB connection error:', err));
 
-// Routes
+
+// Import and mount API routes
+const authRoutes = require('./src/routes/auth');
+app.use('/api/auth', authRoutes);
+
+// Root route
 app.get('/', (req, res) => {
   res.json({ 
     message: 'SIH 2025 Backend API', 
