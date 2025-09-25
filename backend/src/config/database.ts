@@ -3,34 +3,22 @@ import { logger } from './logger';
 
 const connectDB = async (): Promise<void> => {
   try {
-    const mongoURI = process.env.MONGODB_URI;
-    
-    if (!mongoURI) {
-      throw new Error('MongoDB URI is not defined in environment variables');
+    const uri = process.env.MONGODB_URI;
+    if (!uri) {
+      throw new Error('MongoDB URI is not defined');
     }
 
-    const conn = await mongoose.connect(mongoURI);
+    mongoose.set('strictQuery', false);
     
+    const conn = await mongoose.connect(uri);
     logger.info(`MongoDB Connected: ${conn.connection.host}`);
-    
-    // Handle connection events
-    mongoose.connection.on('error', (err: Error) => {
+
+    mongoose.connection.on('error', (err) => {
       logger.error('MongoDB connection error:', err);
     });
 
-    mongoose.connection.on('disconnected', () => {
-      logger.warn('MongoDB disconnected');
-    });
-
-    // Graceful shutdown
-    process.on('SIGINT', async () => {
-      await mongoose.connection.close();
-      logger.info('MongoDB connection closed through app termination');
-      process.exit(0);
-    });
-
   } catch (error) {
-    logger.error('Error connecting to MongoDB:', error);
+    logger.error('Failed to connect to MongoDB:', error);
     process.exit(1);
   }
 };

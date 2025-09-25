@@ -4,7 +4,7 @@ import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-d
 import Navbar from './components/Navbar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-
+import CertificateVerification from './pages/CertificateVerification';
 // Admin Pages
 import AdminPanel from './pages/AdminPanel';
 import UserManagement from './pages/admin/UserManagement';
@@ -146,7 +146,9 @@ const AppRoutes: React.FC = () => {
               </ProtectedRoute>
             }
           />
-
+          <Route
+           path="/verify-certificate/:certificateId"
+            element={<CertificateVerification />} />
           {/* Student Routes */}
           <Route
             path="/student/dashboard"

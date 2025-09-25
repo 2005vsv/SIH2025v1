@@ -1,29 +1,23 @@
+// backend/src/routes/certificates.ts
+// Add these routes to your existing certificates route file
+
 import express from 'express';
 import {
-    createCertificate,
-    deleteCertificate,
-    downloadCertificate,
-    getAllCertificates,
-    getCertificateById,
-    updateCertificate,
-    verifyCertificate,
+  createCertificate,
+  getStudentCertificates,
+  verifyCertificate,
+  updateCertificateBlockchain
 } from '../controllers/certificateController';
-import { auth } from '../middleware/auth';
-import { requireRole } from '../middleware/roleCheck';
 
 const router = express.Router();
 
-// Student routes
-router.get('/', auth, getAllCertificates);
-router.get('/:id', auth, getCertificateById);
-router.get('/:id/download', auth, downloadCertificate);
-router.post('/', auth, createCertificate);
+// EXISTING ROUTES (keep all your existing routes)
+// ... your existing routes here
 
-// Admin routes
-router.put('/:id', auth, requireRole('admin'), updateCertificate);
-router.delete('/:id', auth, requireRole('admin'), deleteCertificate);
-
-// Public routes
-router.post('/verify', verifyCertificate);
+// NEW ROUTES - Add these
+router.post('/create', createCertificate);                    // Create certificate with QR
+router.get('/student/:studentId', getStudentCertificates);    // Get student's certificates
+router.get('/verify/:certificateId', verifyCertificate);      // Verify certificate (QR scan)
+router.put('/:certificateId/blockchain', updateCertificateBlockchain); // Update with blockchain data
 
 export default router;

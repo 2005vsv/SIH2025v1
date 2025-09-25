@@ -1,177 +1,35 @@
+// backend/src/models/Certificate.ts
+// Updated Certificate model
+
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface ICertificate extends Document {
-  userId: mongoose.Types.ObjectId;
-  type: 'degree' | 'diploma' | 'course_completion' | 'participation' | 'achievement' | 'transcript';
-  title: string;
-  description?: string;
+  studentId: string;
+  certificateType: string;
+  grade?: string;
+  qrCode?: string;
+  verificationUrl?: string;
+  blockchainTxHash?: string;
+  isBlockchainIssued: boolean;
   issueDate: Date;
-  validUntil?: Date;
-  certificateNumber: string;
-  qrCode: string;
-  pdfUrl: string;
-  verificationHash: string;
-  metadata: {
-    course?: string;
-    grade?: string;
-    duration?: string;
-    institution: string;
-    department?: string;
-    cgpa?: number;
-    percentage?: number;
-  };
-  isRevoked: boolean;
-  revokedAt?: Date;
-  revokedBy?: mongoose.Types.ObjectId;
-  revokeReason?: string;
-  downloadCount: number;
-  verificationCount: number;
-  issuedBy: mongoose.Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
-const CertificateSchema = new Schema<ICertificate>({
-  userId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  },
-  type: {
-    type: String,
-    required: [true, 'Certificate type is required'],
-    enum: ['degree', 'diploma', 'course_completion', 'participation', 'achievement', 'transcript'],
-    index: true,
-  },
-  title: {
-    type: String,
-    required: [true, 'Certificate title is required'],
-    trim: true,
-    maxlength: [200, 'Title cannot exceed 200 characters'],
-  },
-  description: {
-    type: String,
-    trim: true,
-    maxlength: [1000, 'Description cannot exceed 1000 characters'],
-  },
-  issueDate: {
-    type: Date,
-    required: [true, 'Issue date is required'],
-    default: Date.now,
-    index: true,
-  },
-  validUntil: {
-    type: Date,
-    validate: {
-      validator: function(this: ICertificate, value: Date) {
-        return !value || value > this.issueDate;
-      },
-      message: 'Valid until date must be after issue date',
-    },
-  },
-  certificateNumber: {
-    type: String,
-    required: true,
-    unique: true,
-    index: true,
-  },
-  qrCode: {
-    type: String,
-    required: true,
-  },
-  pdfUrl: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  verificationHash: {
-    type: String,
-    required: true,
-    unique: true,
-    index: true,
-  },
-  metadata: {
-    course: {
-      type: String,
-      trim: true,
-    },
-    grade: {
-      type: String,
-      trim: true,
-    },
-    duration: {
-      type: String,
-      trim: true,
-    },
-    institution: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    department: {
-      type: String,
-      trim: true,
-    },
-    cgpa: {
-      type: Number,
-      min: [0, 'CGPA cannot be negative'],
-      max: [10, 'CGPA cannot exceed 10'],
-    },
-    percentage: {
-      type: Number,
-      min: [0, 'Percentage cannot be negative'],
-      max: [100, 'Percentage cannot exceed 100'],
-    },
-  },
-  isRevoked: {
-    type: Boolean,
-    default: false,
-    index: true,
-  },
-  revokedAt: {
-    type: Date,
-  },
-  revokedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-  },
-  revokeReason: {
-    type: String,
-    trim: true,
-    maxlength: [500, 'Revoke reason cannot exceed 500 characters'],
-  },
-  downloadCount: {
-    type: Number,
-    default: 0,
-    min: [0, 'Download count cannot be negative'],
-  },
-  verificationCount: {
-    type: Number,
-    default: 0,
-    min: [0, 'Verification count cannot be negative'],
-  },
-  issuedBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-  },
+const certificateSchema = new Schema<ICertificate>({
+  studentId: { type: String, required: true },
+  certificateType: { type: String, required: true },
+  grade: { type: String },
+  qrCode: { type: String },
+  verificationUrl: { type: String },
+  blockchainTxHash: { type: String },
+  isBlockchainIssued: { type: Boolean, default: false },
+  issueDate: { type: Date, default: Date.now },
 }, {
-  timestamps: true,
+  timestamps: true
 });
 
-CertificateSchema.index({ userId: 1, type: 1 });
-CertificateSchema.index({ issueDate: -1 });
-CertificateSchema.index({ isRevoked: 1, type: 1 });
+// Single place for indices
+certificateSchema.index({ studentId: 1 });
+certificateSchema.index({ certificateType: 1 });
 
-// Pre-save middleware to generate certificate number
-CertificateSchema.pre('save', function(next) {
-  if (!this.certificateNumber) {
-    const year = new Date().getFullYear();
-    const random = Math.random().toString(36).substr(2, 8).toUpperCase();
-    this.certificateNumber = `CERT${year}${random}`;
-  }
-  next();
-});
-
-export default mongoose.model<ICertificate>('Certificate', CertificateSchema);
+export const Certificate = mongoose.model<ICertificate>('Certificate', certificateSchema);
+export default Certificate;

@@ -204,6 +204,15 @@ app.use(notFound);
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
+// Error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something broke!' });
+});
+
+// Initialize Telegram bot
+import './services/telegramBot';
+
 // Start server
 const PORT = process.env.PORT || 5000;
 
@@ -244,4 +253,4 @@ process.on('uncaughtException', (err: Error) => {
   process.exit(1);
 });
 
-export default app; 
+export default app;
