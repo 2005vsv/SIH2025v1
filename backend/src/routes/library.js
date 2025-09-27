@@ -29,7 +29,12 @@ router.get('/books/:id', auth, getBookById);
 router.get('/books/:id/qr', auth, getBookQR);
 
 // Create book (Admin only)
-router.post('/books', auth, requireRole('admin'), createBook);
+router.post('/books', auth, requireRole('admin'), (req, res, next) => {
+    // Debug: log the incoming request body
+    console.log('POST /api/library/books body:', req.body);
+    // Call the actual controller
+    createBook(req, res, next);
+});
 
 // Update book (Admin only)
 router.put('/books/:id', auth, requireRole('admin'), updateBook);

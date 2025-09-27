@@ -2,6 +2,171 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 
 // Get all users (Admin only)
+// Admin-only registration
+const registerAdmin = async (req, res) => {
+  try {
+    // Allow registration if no admin exists, otherwise only admins can register new admins
+    const adminExists = await User.findOne({ role: 'admin' });
+    if (adminExists && (!req.user || req.user.role !== 'admin')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can register new admins',
+      });
+    }
+
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and password are required',
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email',
+      });
+    }
+
+    // Create admin user
+    const user = new User({ name, email, password, role: 'admin' });
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Admin registered successfully',
+      data: { user: { id: user._id, name: user.name, email: user.email, role: user.role } },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to register admin',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// Admin-only password change
+// Student password change
+const changePassword = async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'student') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only students can change their password',
+      });
+    }
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Old password and new password are required',
+      });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long',
+      });
+    }
+    const user = await User.findById(req.user.id).select('+password');
+    if (!user || user.role !== 'student') {
+      return res.status(404).json({
+        success: false,
+        message: 'Student user not found',
+      });
+    }
+    const isMatch = await user.comparePassword(oldPassword);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Old password is incorrect',
+      });
+    }
+    user.password = newPassword;
+    await user.save();
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to change password',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+const changeAdminPassword = async (req, res) => {
+  try {
+    // Only allow admins to change their password
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can change admin password',
+      });
+    }
+
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Old password and new password are required',
+      });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long',
+      });
+    }
+
+    const user = await User.findById(req.user.id).select('+password');
+    if (!user || user.role !== 'admin') {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin user not found',
+      });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect',
+      });
+    }
+
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from current password',
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    user.password = hashedPassword;
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Admin password changed successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error occurred while changing admin password',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
 const getAllUsers = async (req, res) => {
   try {
     const {
@@ -461,6 +626,59 @@ const bulkExport = async (req, res) => {
   }
 };
 
+
+
+// Password reset confirmation (using token)
+const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token and new password are required',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long',
+      });
+    }
+
+    // Find user by reset token and check expiry
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired token',
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password has been reset successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error occurred while resetting password',
+      ...(process.env.NODE_ENV === 'development' && { error: error.message }),
+    });
+  }
+};
+
 module.exports = {
   getAllUsers,
   createUser,
@@ -473,4 +691,8 @@ module.exports = {
   bulkImport,
   searchUsers,
   bulkExport,
+  resetPassword,
+  registerAdmin,
+  changeAdminPassword,
+  changePassword,
 };

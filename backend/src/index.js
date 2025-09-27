@@ -167,6 +167,7 @@ app.get('/', (req, res) => {
 });
 
 // API Routes
+app.use('/api/users', require('./routes/users'));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/fees', feesRoutes);

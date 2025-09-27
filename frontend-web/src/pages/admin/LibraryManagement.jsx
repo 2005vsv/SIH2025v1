@@ -1,16 +1,13 @@
-import React, { useState, useEffect } from 'react';
 import {
   BookOpen,
+  CheckCircle,
+  Clock,
   Plus,
   Search,
-  Edit,
   Trash2,
-  Download,
-  Users,
-  Clock,
-  CheckCircle,
   XCircle
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { libraryAPI } from '../../services/api';
 
@@ -26,21 +23,27 @@ const LibraryManagement = () => {
     title: '',
     author: '',
     isbn: '',
-    genre: '',
-    publisher: '',
+    category: '',
     publishedYear: new Date().getFullYear(),
     totalCopies: 1,
     description: '',
     location: ''
+    // genre and publisher removed
   });
 
   useEffect(() => {
+    // DEBUG: Make sure your backend is running and the endpoints below exist:
+    // - GET    /api/library/books
+    // - GET    /api/library/borrow-history
+    // - POST   /api/library/books
+    // If you get 404, check your backend routes and your libraryAPI config!
     fetchData();
   }, []);
 
   const fetchData = async () => {
     try {
       setLoading(true);
+      // If you get 404 here, check your backend and libraryAPI.js for correct URLs!
       const [booksResponse, borrowResponse] = await Promise.all([
         libraryAPI.getBooks(),
         libraryAPI.getBorrowHistory()
@@ -48,24 +51,43 @@ const LibraryManagement = () => {
       setBooks(booksResponse.data.data.books || []);
       setBorrowRecords(borrowResponse.data.data.borrowRecords || []);
     } catch (error) {
-      console.error('Error fetching library data:', error);
-      toast.error('Failed to load library data');
+      // Show endpoint and error for easier debugging
+      toast.error(
+        `Error: ${error.response?.status} ${error.response?.statusText || ''} - ${error.response?.data?.message || error.message || 'Failed to load library data'}`
+      );
+      console.error('Error fetching library data:', error.config?.url, error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleCreateBook = async () => {
+    // Strict required field validation
+    if (!newBook.title || !newBook.author || !newBook.isbn || !newBook.category || !newBook.totalCopies) {
+      toast.error('Please fill all required fields (Title, Author, ISBN, Category, Total Copies)');
+      return;
+    }
     try {
-      await libraryAPI.createBook(newBook);
+      // Only send fields your backend expects!
+      const bookToCreate = {
+        title: newBook.title,
+        author: newBook.author,
+        isbn: newBook.isbn,
+        category: newBook.category,
+        publishedYear: newBook.publishedYear,
+        totalCopies: Number(newBook.totalCopies),
+        availableCopies: Number(newBook.totalCopies),
+        description: newBook.description,
+        location: newBook.location
+      };
+      await libraryAPI.createBook(bookToCreate);
       toast.success('Book added successfully');
       setShowCreateModal(false);
       setNewBook({
         title: '',
         author: '',
         isbn: '',
-        genre: '',
-        publisher: '',
+        category: '',
         publishedYear: new Date().getFullYear(),
         totalCopies: 1,
         description: '',
@@ -73,7 +95,10 @@ const LibraryManagement = () => {
       });
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to add book');
+      toast.error(
+        `Error: ${error.response?.status} ${error.response?.statusText || ''} - ${error.response?.data?.message || error.message || 'Failed to add book'}`
+      );
+      console.error('Create book error:', error.config?.url, error);
     }
   };
 
@@ -324,109 +349,58 @@ const LibraryManagement = () => {
 
       {/* Create Book Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Add New Book</h2>
-            <div className="mb-4">
-              <label className="block mb-1 font-medium">Title</label>
-              <input
-                type="text"
-                value={newBook.title}
-                onChange={e => setNewBook({ ...newBook, title: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                required
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block mb-1 font-medium">Author</label>
-              <input
-                type="text"
-                value={newBook.author}
-                onChange={e => setNewBook({ ...newBook, author: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                required
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block mb-1 font-medium">ISBN</label>
-              <input
-                type="text"
-                value={newBook.isbn}
-                onChange={e => setNewBook({ ...newBook, isbn: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                required
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block mb-1 font-medium">Genre</label>
-              <input
-                type="text"
-                value={newBook.genre}
-                onChange={e => setNewBook({ ...newBook, genre: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block mb-1 font-medium">Publisher</label>
-              <input
-                type="text"
-                value={newBook.publisher}
-                onChange={e => setNewBook({ ...newBook, publisher: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block mb-1 font-medium">Published Year</label>
-              <input
-                type="number"
-                value={newBook.publishedYear}
-                onChange={e => setNewBook({ ...newBook, publishedYear: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block mb-1 font-medium">Total Copies</label>
-              <input
-                type="number"
-                value={newBook.totalCopies}
-                min={1}
-                onChange={e => setNewBook({ ...newBook, totalCopies: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                required
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block mb-1 font-medium">Location</label>
-              <input
-                type="text"
-                value={newBook.location}
-                onChange={e => setNewBook({ ...newBook, location: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block mb-1 font-medium">Description</label>
-              <textarea
-                value={newBook.description}
-                onChange={e => setNewBook({ ...newBook, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                rows={2}
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateBook}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-              >
-                Add Book
-              </button>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 relative animate-fadeInUp">
+            <h2 className="text-2xl font-bold mb-6 text-blue-700 flex items-center gap-2">
+              <BookOpen className="w-6 h-6" /> Add New Book
+            </h2>
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                handleCreateBook();
+              }}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block mb-1 font-medium">Title<span className="text-red-500">*</span></label>
+                  <input type="text" value={newBook.title} onChange={e => setNewBook({ ...newBook, title: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium">Author<span className="text-red-500">*</span></label>
+                  <input type="text" value={newBook.author} onChange={e => setNewBook({ ...newBook, author: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium">ISBN<span className="text-red-500">*</span></label>
+                  <input type="text" value={newBook.isbn} onChange={e => setNewBook({ ...newBook, isbn: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium">Category<span className="text-red-500">*</span></label>
+                  <input type="text" value={newBook.category} onChange={e => setNewBook({ ...newBook, category: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                </div>
+                {/* Remove genre and publisher fields from the form */}
+                <div>
+                  <label className="block mb-1 font-medium">Published Year</label>
+                  <input type="number" value={newBook.publishedYear} onChange={e => setNewBook({ ...newBook, publishedYear: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium">Total Copies<span className="text-red-500">*</span></label>
+                  <input type="number" value={newBook.totalCopies} min={1} onChange={e => setNewBook({ ...newBook, totalCopies: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                </div>
+                <div>
+                  <label className="block mb-1 font-medium">Location</label>
+                  <input type="text" value={newBook.location} onChange={e => setNewBook({ ...newBook, location: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Description</label>
+                <textarea value={newBook.description} onChange={e => setNewBook({ ...newBook, description: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" rows={2} />
+              </div>
+              <div className="flex gap-3 justify-end mt-6">
+                <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
+                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">Add Book</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

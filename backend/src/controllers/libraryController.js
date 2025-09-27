@@ -86,6 +86,18 @@ exports.getBookById = async (req, res) => {
 // Create book (Admin only)
 exports.createBook = async (req, res) => {
   try {
+    // Debug: log the incoming request body
+    console.log('CreateBook req.body:', req.body);
+
+    // Basic validation: check required fields
+    const { title, author, isbn, category, totalCopies } = req.body;
+    if (!title || !author || !isbn || !category || !totalCopies) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: title, author, isbn, category, totalCopies',
+      });
+    }
+
     const book = new Book(req.body);
     await book.save();
 
@@ -95,6 +107,8 @@ exports.createBook = async (req, res) => {
       data: { book },
     });
   } catch (error) {
+    // Log the error for debugging
+    console.error('CreateBook error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create book',

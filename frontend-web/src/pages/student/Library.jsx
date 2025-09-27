@@ -1,6 +1,8 @@
-import { BookOpen, Clock, Search, Star, Filter, Calendar, User, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+
 import { motion } from 'framer-motion';
+import { AlertCircle, BookOpen, Search, Star } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { libraryAPI } from '../../services/api';
 
 const StudentLibrary = () => {
   const [books, setBooks] = useState([]);
@@ -10,91 +12,83 @@ const StudentLibrary = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeTab, setActiveTab] = useState('browse');
 
+
   useEffect(() => {
     fetchBooks();
     fetchBorrowedBooks();
+    // Optionally, add polling or websocket for real-time updates
   }, []);
 
   const fetchBooks = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('/api/library/books', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      const data = await response.json();
-      if (data.success) {
-        setBooks(data.data);
+      setLoading(true);
+      const response = await libraryAPI.getBooks();
+      // Defensive: support both array and paginated object
+      let booksData = response?.data?.data;
+      if (Array.isArray(booksData)) {
+        setBooks(booksData);
+      } else if (booksData?.books) {
+        setBooks(booksData.books);
+      } else {
+        setBooks([]);
       }
     } catch (error) {
+      setBooks([]);
       console.error('Error fetching books:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const fetchBorrowedBooks = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('/api/library/my-borrowed', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      const data = await response.json();
-      if (data.success) {
-        setBorrowedBooks(data.data);
+      // Defensive: try both endpoints for compatibility
+      let response = null;
+      try {
+        response = await libraryAPI.getBorrowHistory();
+      } catch (e) {
+        // fallback or log
+      }
+      let borrowedData = response?.data?.data;
+      if (Array.isArray(borrowedData)) {
+        setBorrowedBooks(borrowedData);
+      } else if (borrowedData?.borrowRecords) {
+        setBorrowedBooks(borrowedData.borrowRecords);
+      } else if (borrowedData?.borrowedBooks) {
+        setBorrowedBooks(borrowedData.borrowedBooks);
+      } else {
+        setBorrowedBooks([]);
       }
     } catch (error) {
+      setBorrowedBooks([]);
       console.error('Error fetching borrowed books:', error);
     } finally {
       setLoading(false);
     }
   };
 
+
   const handleBorrowBook = async (bookId) => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`/api/library/borrow/${bookId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      const data = await response.json();
-      if (data.success) {
-        fetchBooks();
-        fetchBorrowedBooks();
-      } else {
-        alert(data.message || 'Failed to borrow book');
-      }
+      await libraryAPI.borrowBook(bookId);
+      fetchBooks();
+      fetchBorrowedBooks();
     } catch (error) {
+      alert(error?.response?.data?.message || 'Failed to borrow book');
       console.error('Error borrowing book:', error);
-      alert('Failed to borrow book');
     }
   };
 
+
   const handleReturnBook = async (borrowId) => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`/api/library/return/${borrowId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      const data = await response.json();
-      if (data.success) {
-        fetchBooks();
-        fetchBorrowedBooks();
-      } else {
-        alert(data.message || 'Failed to return book');
-      }
+      await libraryAPI.returnBook(borrowId);
+      fetchBooks();
+      fetchBorrowedBooks();
     } catch (error) {
+      alert(error?.response?.data?.message || 'Failed to return book');
       console.error('Error returning book:', error);
-      alert('Failed to return book');
     }
   };
 

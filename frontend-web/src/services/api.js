@@ -13,7 +13,7 @@ const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const token = localStorage.getItem('accessToken','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDUzZDgzYjQxMTE1OGZmMGVlZTZjZCIsImVtYWlsIjoiYmFidUBnbWFpbC5jb20iLCJyb2xlIjoic3R1ZGVudCIsInN0dWRlbnRJZCI6IjJHSTIzQ1MwMzYiLCJpYXQiOjE3NTg5NTQwMTQsImV4cCI6MTc1ODk1NzYxNH0.UjsK170eo9Jd_WEikTI0RVNivx0B4alxQ0zc_PVm3R4');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -73,6 +73,8 @@ export const userAPI = {
   update: (id, data) => api.put(`/users/${id}`, data),
   delete: (id) => api.delete(`/users/${id}`),
   create: (data) => api.post('/users', data),
+  registerAdmin: (data) => api.post('/users/register-admin', data),
+  changeAdminPassword: (data) => api.post('/users/change-admin-password', data),
 };
 
 export const feeAPI = {

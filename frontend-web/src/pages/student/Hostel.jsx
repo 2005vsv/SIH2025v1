@@ -1,6 +1,6 @@
-import { Bed, Building, Calendar, MapPin, Phone, Users, Wifi } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Bed, Building, Users, Wifi } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 const StudentHostel = () => {
   const [booking, setBooking] = useState(null);

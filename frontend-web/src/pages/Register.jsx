@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { CreditCard, Eye, EyeOff, Lock, Mail, User, UserPlus } from 'lucide-react';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -54,7 +54,7 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4 py-8">
+  <div className="min-h-screen bg-white dark:bg-gray-900 flex items-center justify-center px-4 py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

@@ -1,34 +1,30 @@
-import { 
-  BookOpen, 
-  Clock, 
-  Search, 
-  Star, 
-  QrCode,
-  Download,
-  Eye,
-  Calendar,
-  CheckCircle,
-  AlertTriangle,
-  Filter,
-  Grid,
-  List,
-  ArrowLeft,
-  Heart,
-  Share2,
-  BookMarked,
-  User,
-  Tag,
-  RotateCcw,
-  X,
-  Plus,
-  History
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+    AlertTriangle,
+    BookOpen,
+    Calendar,
+    CheckCircle,
+    Clock,
+    Download,
+    Eye,
+    Filter,
+    Grid,
+    Heart,
+    History,
+    List,
+    Plus,
+    QrCode,
+    RotateCcw,
+    Search,
+    Star,
+    Tag,
+    X
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { libraryAPI } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
 import BackButton from '../../components/BackButton';
+import { libraryAPI } from '../../services/api';
 
 const StudentLibrary = () => {
   const navigate = useNavigate();

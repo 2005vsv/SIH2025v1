@@ -17,6 +17,12 @@ const UserSchema = new Schema({
     minlength: [6, 'Password must be at least 6 characters'],
     select: false, // Don't include password in queries by default
   },
+  resetPasswordToken: {
+    type: String,
+  },
+  resetPasswordExpires: {
+    type: Date,
+  },
   name: {
     type: String,
     required: [true, 'Name is required'],

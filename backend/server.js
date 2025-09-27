@@ -31,7 +31,9 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // Import and mount API routes
 const authRoutes = require('./src/routes/auth');
+const userRoutes = require('./src/routes/users');
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
 // Root route
 app.get('/', (req, res) => {

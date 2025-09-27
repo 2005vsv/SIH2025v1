@@ -1,6 +1,6 @@
-import { Bell, BellRing, Check, Filter, MoreVertical, Search, Trash2, X, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { AlertCircle, AlertTriangle, Bell, BellRing, CheckCircle, Filter, MoreVertical, Search, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 const StudentNotifications = () => {
   const [notifications, setNotifications] = useState([]);

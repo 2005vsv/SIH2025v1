@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useReducer } from 'react';
 import PropTypes from 'prop-types';
+import { createContext, useContext, useReducer } from 'react';
 
 const initialState = {
   isAuthenticated: !!localStorage.getItem('accessToken'),

@@ -1,38 +1,22 @@
-import {
-  GraduationCap,
-  Calendar,
-  BookOpen,
-  FileText,
-  Award,
-  Clock,
-  Download,
-  Upload,
-  Eye,
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-  Star,
-  TrendingUp,
-  BarChart3,
-  Target,
-  Search,
-  Filter,
-  Plus,
-  Edit,
-  Trash2,
-  Send,
-  RefreshCw,
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Users,
-  PieChart,
-  Calendar as CalendarIcon,
-  Clock as ClockIcon
-} from 'lucide-react';
-import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import {
+    AlertTriangle,
+    Award,
+    BookOpen,
+    Calendar as CalendarIcon,
+    CheckCircle,
+    Clock,
+    Clock as ClockIcon,
+    Download,
+    FileText,
+    GraduationCap,
+    MapPin,
+    Search,
+    Target,
+    Upload,
+    XCircle
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 
