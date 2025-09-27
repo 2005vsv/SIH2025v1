@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,8 +31,16 @@ const Login = () => {
       const response = await authAPI.login(formData);
       const { user, accessToken, refreshToken } = response.data.data;
       login(user, accessToken, refreshToken);
-      toast.success('Login successful!');
-      navigate('/dashboard');
+      toast.success(`${user.role.charAt(0).toUpperCase() + user.role.slice(1)} login successful!`);
+      if (user.role === 'admin') {
+        navigate('/dashboard');
+      } else if (user.role === 'student') {
+        navigate('/student');
+      } else if (user.role === 'faculty') {
+        navigate('/faculty');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Login failed');
     } finally {
@@ -48,8 +56,16 @@ const Login = () => {
       const response = await authAPI.login(credentials);
       const { user, accessToken, refreshToken } = response.data.data;
       login(user, accessToken, refreshToken);
-      toast.success('Login successful!');
-      navigate('/dashboard');
+      toast.success(`${user.role.charAt(0).toUpperCase() + user.role.slice(1)} login successful!`);
+      if (user.role === 'admin') {
+        navigate('/dashboard');
+      } else if (user.role === 'student') {
+        navigate('/student');
+      } else if (user.role === 'faculty') {
+        navigate('/faculty');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Login failed');
     } finally {

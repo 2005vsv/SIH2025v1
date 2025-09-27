@@ -1,18 +1,11 @@
 import { motion } from 'framer-motion';
 import {
-  CreditCard,
-  Download,
-  DollarSign,
-  FileText,
-  Filter,
-  Search,
-  Calendar,
-  CheckCircle,
-  Clock,
-  XCircle,
-  AlertCircle
+    AlertCircle,
+    CheckCircle,
+    Clock,
+    XCircle
 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { feeAPI } from '../services/api';
 

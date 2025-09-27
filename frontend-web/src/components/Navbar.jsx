@@ -1,30 +1,32 @@
 import {
-  Award,
-  Bell,
-  BookOpen,
-  Building,
-  Calendar,
-  ChevronDown,
-  DollarSign,
-  FileText,
-  GraduationCap,
-  Home,
-  LogOut,
-  Menu,
-  Moon,
-  Settings,
-  Sun,
-  Trophy,
-  User,
-  Users,
-  X
+    Award,
+    Bell,
+    BookOpen,
+    Building,
+    Calendar,
+    ChevronDown,
+    DollarSign,
+    FileText,
+    GraduationCap,
+    Home,
+    LogOut,
+    Menu,
+    Moon,
+    Settings,
+    Sun,
+    Trophy,
+    User,
+    Users,
+    X
 } from 'lucide-react';
 import React from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
+
 const Navbar = () => {
+  const navigate=useNavigate();
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -32,7 +34,8 @@ const Navbar = () => {
   const location = useLocation();
 
   const handleLogout = () => {
-    logout();
+  logout();
+  navigate('/login');
   };
 
   const isActive = (path) => {
@@ -87,20 +90,20 @@ const Navbar = () => {
                        user?.role === 'faculty' ? '/faculty/dashboard' : '/dashboard';
 
   return (
-    <nav className="bg-white dark:bg-gray-900 shadow px-4 py-2 flex items-center justify-between relative z-20">
+  <nav className="bg-white dark:bg-gray-900 shadow px-4 py-2 flex items-center justify-between relative z-20">
       {/* Logo and portal name */}
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-2">
-          <span className="text-lg font-bold text-blue-600">SP</span>
+          <span className="text-lg font-bold text-blue-600 dark:text-blue-400">SP</span>
         </div>
-        <div>
+        <div className="text-gray-700 dark:text-gray-300">
           {user?.role === 'admin' ? 'Admin Portal' : 
            user?.role === 'faculty' ? 'Faculty Portal' : 'Student Portal'}
         </div>
       </div>
 
       {/* Desktop Navigation */}
-      <div className="hidden md:flex items-center space-x-2">
+  <div className="hidden md:flex items-center space-x-2">
         {navigation.slice(0, 5).map((item) => {
           const Icon = item.icon;
           return (
@@ -129,6 +132,7 @@ const Navbar = () => {
               <span>More</span>
               <ChevronDown className="w-4 h-4" />
             </button>
+            <button onClick={()=>navigate('/student/change-password')}>change password</button>
             {isDropdownOpen && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-30">
                 {navigation.slice(5).map((item) => {
@@ -166,7 +170,7 @@ const Navbar = () => {
 
         {/* User Menu */}
         <div className="flex items-center space-x-2">
-          <span className="font-medium">{user?.name}</span>
+          <span className="font-medium text-gray-700 dark:text-gray-300">{user?.name}</span>
           <span className="text-xs text-gray-500 dark:text-gray-400">{user?.role}</span>
         </div>
         <Link
@@ -187,7 +191,7 @@ const Navbar = () => {
       </div>
 
       {/* Mobile menu button */}
-      <div className="md:hidden flex items-center">
+  <div className="md:hidden flex items-center">
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="p-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"

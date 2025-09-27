@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Calendar, Mail, MapPin, Phone, Save, User } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';

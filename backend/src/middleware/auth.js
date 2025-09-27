@@ -4,6 +4,8 @@ const User = require('../models/User');
 
 // Auth middleware
 const auth = async (req, res, next) => {
+  // Debug: log all headers to help diagnose missing Authorization header
+  console.log('DEBUG AUTH HEADERS:', req.headers);
   try {
     const authHeader = req.headers.authorization;
 

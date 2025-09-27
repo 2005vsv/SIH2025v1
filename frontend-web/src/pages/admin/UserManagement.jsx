@@ -8,7 +8,7 @@ import {
   UserX,
   Users
 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { userAPI } from '../../services/api';
 
@@ -134,27 +134,34 @@ const UserManagement = () => {
         return;
       }
 
+      // Build userData with only fields expected by backend
       const userData = {
         name: editUser.name.trim(),
         email: editUser.email.trim(),
         role: editUser.role,
         isActive: editUser.isActive,
-        studentId: editUser.studentId?.trim() || undefined,
-        profile: {
-          phone: editUser.profile.phone?.trim() || undefined,
-          address: editUser.profile.address?.trim() || undefined,
-          dateOfBirth: editUser.profile.dateOfBirth?.trim() || undefined,
-          department: editUser.profile.department?.trim() || undefined,
-          semester: editUser.profile.semester ? Number(editUser.profile.semester) : defaultSemester,
-          admissionYear: editUser.profile.admissionYear ? Number(editUser.profile.admissionYear) : new Date().getFullYear(),
-          cgpa: editUser.profile.cgpa ? Number(editUser.profile.cgpa) : defaultCgpa,
-          sgpa: editUser.profile.sgpa ? Number(editUser.profile.sgpa) : defaultSgpa
-        }
       };
 
-      Object.keys(userData.profile).forEach(key => {
-        if (userData.profile[key] === undefined) delete userData.profile[key];
-      });
+      if (editUser.studentId) userData.studentId = editUser.studentId.trim();
+
+      // Only include profile if role is student
+      if (editUser.role === 'student') {
+        const profile = {};
+        if (editUser.profile.phone?.trim()) profile.phone = editUser.profile.phone.trim();
+        if (editUser.profile.address?.trim()) profile.address = editUser.profile.address.trim();
+        if (editUser.profile.department?.trim()) profile.department = editUser.profile.department.trim();
+        // Only send dateOfBirth if valid
+        if (editUser.profile.dateOfBirth && !isNaN(Date.parse(editUser.profile.dateOfBirth))) profile.dateOfBirth = editUser.profile.dateOfBirth;
+        // Only send semester if valid
+        if (editUser.profile.semester && Number.isInteger(Number(editUser.profile.semester))) profile.semester = Number(editUser.profile.semester);
+        // Only send admissionYear if valid
+        if (editUser.profile.admissionYear && Number(editUser.profile.admissionYear) >= 1990 && Number(editUser.profile.admissionYear) <= new Date().getFullYear()) profile.admissionYear = Number(editUser.profile.admissionYear);
+        // Only send cgpa if valid
+        if (editUser.profile.cgpa !== undefined && editUser.profile.cgpa !== '' && !isNaN(Number(editUser.profile.cgpa))) profile.cgpa = Number(editUser.profile.cgpa);
+        // Only send sgpa if valid
+        if (editUser.profile.sgpa !== undefined && editUser.profile.sgpa !== '' && !isNaN(Number(editUser.profile.sgpa))) profile.sgpa = Number(editUser.profile.sgpa);
+        userData.profile = profile;
+      }
 
       if (!selectedUser._id) throw new Error('User ID is missing');
 
@@ -164,7 +171,11 @@ const UserManagement = () => {
       setSelectedUser(null);
       fetchUsers();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to update user');
+      // Show backend error details for debugging
+      const msg = error.response?.data?.message || error.response?.data || error.message || 'Failed to update user';
+      toast.error(`Update failed: ${msg}`);
+      // Optionally log error to console for devs
+      console.error('Update user error:', error);
     }
   };
 
@@ -612,209 +623,218 @@ const UserManagement = () => {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 relative"
+            className="bg-white rounded-xl shadow-xl max-w-3xl w-full p-6 relative"
           >
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex items-start justify-between mb-4">
               <div className="text-xl font-bold">Edit User</div>
               <button
                 onClick={() => setShowEditModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                aria-label="Close edit user modal"
+                className="text-gray-500 hover:text-gray-700 ml-3"
               >
                 ✕
               </button>
             </div>
-            <div className="mb-3">
-              <label className="block font-medium mb-1">Name *</label>
-              <input
-                type="text"
-                value={editUser.name}
-                onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter full name"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="block font-medium mb-1">Email *</label>
-              <input
-                type="email"
-                value={editUser.email}
-                onChange={(e) => setEditUser({ ...editUser, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter email address"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="block font-medium mb-1">Role *</label>
-              <select
-                value={editUser.role}
-                onChange={(e) => setEditUser({ ...editUser, role: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="student">Student</option>
-                <option value="faculty">Faculty</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="mb-3">
-              <label className="block font-medium mb-1">Status</label>
-              <select
-                value={editUser.isActive ? 'active' : 'inactive'}
-                onChange={(e) => setEditUser({ ...editUser, isActive: e.target.value === 'active' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-            {editUser.role === 'student' && (
-              <div className="border-t pt-4 mt-4">
-                <div className="font-semibold mb-2">Student Information</div>
-                <div className="mb-2">
-                  <label className="block mb-1">Student ID</label>
+            <div className="max-h-[75vh] overflow-y-auto pr-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-medium mb-1">Full Name *</label>
                   <input
                     type="text"
-                    value={editUser.studentId}
-                    onChange={(e) => setEditUser({ ...editUser, studentId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter student ID"
+                    value={editUser.name}
+                    onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter full name"
+                    required
                   />
                 </div>
-                <div className="mb-2">
-                  <label className="block mb-1">Phone</label>
+
+                <div>
+                  <label className="block font-medium mb-1">Email Address *</label>
                   <input
-                    type="tel"
-                    value={editUser.profile.phone}
-                    onChange={(e) => setEditUser({
-                      ...editUser,
-                      profile: { ...editUser.profile, phone: e.target.value }
-                    })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter phone number"
+                    type="email"
+                    value={editUser.email}
+                    onChange={(e) => setEditUser({ ...editUser, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter email address"
+                    required
                   />
                 </div>
-                <div className="mb-2">
-                  <label className="block mb-1">Date of Birth</label>
-                  <input
-                    type="date"
-                    value={editUser.profile.dateOfBirth}
-                    onChange={(e) => setEditUser({
-                      ...editUser,
-                      profile: { ...editUser.profile, dateOfBirth: e.target.value }
-                    })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="mb-2">
-                  <label className="block mb-1">Address</label>
-                  <textarea
-                    value={editUser.profile.address}
-                    onChange={(e) => setEditUser({
-                      ...editUser,
-                      profile: { ...editUser.profile, address: e.target.value }
-                    })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter full address"
-                  />
-                </div>
-                <div className="mb-2">
-                  <label className="block mb-1">Department</label>
+
+                <div>
+                  <label className="block font-medium mb-1">Role *</label>
                   <select
-                    value={editUser.profile.department}
-                    onChange={(e) => setEditUser({
-                      ...editUser,
-                      profile: { ...editUser.profile, department: e.target.value }
-                    })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={editUser.role}
+                    onChange={(e) => setEditUser({ ...editUser, role: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Select Department</option>
-                    <option value="Computer Science">Computer Science</option>
-                    <option value="Information Technology">Information Technology</option>
-                    <option value="Electronics">Electronics</option>
-                    <option value="Mechanical">Mechanical</option>
-                    <option value="Civil">Civil</option>
-                    <option value="Electrical">Electrical</option>
-                    <option value="Chemical">Chemical</option>
-                    <option value="Biotechnology">Biotechnology</option>
+                    <option value="student">Student</option>
+                    <option value="faculty">Faculty</option>
+                    <option value="admin">Admin</option>
                   </select>
                 </div>
-                <div className="mb-2">
-                  <label className="block mb-1">Semester</label>
+
+                <div>
+                  <label className="block font-medium mb-1">Status</label>
                   <select
-                    value={editUser.profile.semester}
-                    onChange={(e) => setEditUser({
-                      ...editUser,
-                      profile: { ...editUser.profile, semester: Number(e.target.value) }
-                    })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={editUser.isActive ? 'active' : 'inactive'}
+                    onChange={(e) => setEditUser({ ...editUser, isActive: e.target.value === 'active' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
-                      <option key={sem} value={sem}>Semester {sem}</option>
-                    ))}
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
                   </select>
-                </div>
-                <div className="mb-2">
-                  <label className="block mb-1">Admission Year</label>
-                  <input
-                    type="number"
-                    value={editUser.profile.admissionYear}
-                    onChange={(e) => setEditUser({
-                      ...editUser,
-                      profile: { ...editUser.profile, admissionYear: Number(e.target.value) }
-                    })}
-                    min="2000"
-                    max="2030"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., 2024"
-                  />
-                </div>
-                <div className="mb-2">
-                  <label className="block mb-1">CGPA</label>
-                  <input
-                    type="number"
-                    value={editUser.profile.cgpa}
-                    onChange={(e) => setEditUser({
-                      ...editUser,
-                      profile: { ...editUser.profile, cgpa: parseFloat(e.target.value) || 0 }
-                    })}
-                    min="0"
-                    max="10"
-                    step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter CGPA (0-10)"
-                  />
-                </div>
-                <div className="mb-2">
-                  <label className="block mb-1">SGPA</label>
-                  <input
-                    type="number"
-                    value={editUser.profile.sgpa}
-                    onChange={(e) => setEditUser({
-                      ...editUser,
-                      profile: { ...editUser.profile, sgpa: parseFloat(e.target.value) || 0 }
-                    })}
-                    min="0"
-                    max="10"
-                    step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter SGPA (0-10)"
-                  />
                 </div>
               </div>
-            )}
-            <div className="flex gap-3 mt-4">
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdateUser}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Update User
-              </button>
+
+              {editUser.role === 'student' && (
+                <div className="border-t pt-4 mt-4">
+                  <div className="font-semibold mb-3">Student Information</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block mb-1">Student ID</label>
+                      <input
+                        type="text"
+                        value={editUser.studentId}
+                        onChange={(e) => setEditUser({ ...editUser, studentId: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter student ID"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block mb-1">Phone Number</label>
+                      <input
+                        type="tel"
+                        value={editUser.profile.phone}
+                        onChange={(e) => setEditUser({
+                          ...editUser,
+                          profile: { ...editUser.profile, phone: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block mb-1">Department</label>
+                      <select
+                        value={editUser.profile.department}
+                        onChange={(e) => setEditUser({
+                          ...editUser,
+                          profile: { ...editUser.profile, department: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select Department</option>
+                        <option value="Computer Science">Computer Science</option>
+                        <option value="Information Technology">Information Technology</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Mechanical">Mechanical</option>
+                        <option value="Civil">Civil</option>
+                        <option value="Electrical">Electrical</option>
+                        <option value="Chemical">Chemical</option>
+                        <option value="Biotechnology">Biotechnology</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block mb-1">Current Semester</label>
+                      <select
+                        value={editUser.profile.semester}
+                        onChange={(e) => setEditUser({
+                          ...editUser,
+                          profile: { ...editUser.profile, semester: Number(e.target.value) }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                          <option key={sem} value={sem}>Semester {sem}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block mb-1">Admission Year</label>
+                      <input
+                        type="number"
+                        value={editUser.profile.admissionYear}
+                        onChange={(e) => setEditUser({
+                          ...editUser,
+                          profile: { ...editUser.profile, admissionYear: Number(e.target.value) }
+                        })}
+                        min="1990"
+                        max={new Date().getFullYear()}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g., 2024"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block mb-1">Address</label>
+                      <textarea
+                        value={editUser.profile.address}
+                        onChange={(e) => setEditUser({
+                          ...editUser,
+                          profile: { ...editUser.profile, address: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        rows={3}
+                        placeholder="Enter full address"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block mb-1">CGPA</label>
+                      <input
+                        type="number"
+                        value={editUser.profile.cgpa}
+                        onChange={(e) => setEditUser({
+                          ...editUser,
+                          profile: { ...editUser.profile, cgpa: parseFloat(e.target.value) || 0 }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        min="0"
+                        max="10"
+                        step="0.01"
+                        placeholder="Enter CGPA (0-10)"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block mb-1">SGPA</label>
+                      <input
+                        type="number"
+                        value={editUser.profile.sgpa}
+                        onChange={(e) => setEditUser({
+                          ...editUser,
+                          profile: { ...editUser.profile, sgpa: parseFloat(e.target.value) || 0 }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        min="0"
+                        max="10"
+                        step="0.01"
+                        placeholder="Enter SGPA (0-10)"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateUser}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Update User
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>

@@ -3,7 +3,7 @@ import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-d
 import Navbar from './components/Navbar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-
+import ChangePassword from './pages/student/ChangePassword';
 // Admin Pages
 import AdminPanel from './pages/AdminPanel';
 import AcademicManagement from './pages/admin/AcademicManagement';
@@ -257,7 +257,7 @@ const AppRoutes = () => {
               )
             }
           />
-          
+          <Route path="/student/change-password" element={<ChangePassword />} />
           {/* Catch all route */}
           <Route
             path="*"

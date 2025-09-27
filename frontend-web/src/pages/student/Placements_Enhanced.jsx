@@ -1,41 +1,22 @@
-import { 
-  Briefcase, 
-  MapPin, 
-  Calendar, 
-  Clock, 
-  DollarSign, 
-  Users, 
-  Building, 
-  Send,
-  Upload,
-  Download,
-  Eye,
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-  Star,
-  Filter,
-  Search,
-  Plus,
-  Edit,
-  Trash2,
-  ExternalLink,
-  User,
-  Mail,
-  Phone,
-  Award,
-  GraduationCap,
-  Target,
-  TrendingUp,
-  FileText,
-  Link as LinkIcon,
-  Heart,
-  Bookmark,
-  Share2,
-  RefreshCw
+import { motion } from 'framer-motion';
+import {
+    Briefcase,
+    Calendar,
+    CheckCircle,
+    DollarSign,
+    Download,
+    ExternalLink,
+    Eye,
+    FileText,
+    Heart,
+    MapPin,
+    Search,
+    Send,
+    Star,
+    Upload,
+    Users
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
 const StudentPlacements = () => {

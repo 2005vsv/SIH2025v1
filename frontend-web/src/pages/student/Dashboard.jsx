@@ -1,35 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  BookOpen,
-  Calendar,
-  CreditCard,
-  Home,
-  Trophy,
-  User,
-  GraduationCap,
-  MessageCircle,
-  TrendingUp,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Bell,
-  Camera,
-  Edit2,
-  Star,
-  Target,
-  Award,
-  BookMarked,
-  MapPin,
-  Mail,
-  Phone,
-  Users,
-  Activity
-} from 'lucide-react';
 import { motion } from 'framer-motion';
+import {
+    Activity,
+    Bell,
+    BookOpen,
+    Calendar,
+    CreditCard,
+    Home,
+    Trophy,
+    User
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { feeAPI, libraryAPI, notificationAPI, examAPI, gamificationAPI, placementAPI } from '../../services/api';
+import { examAPI, feeAPI, gamificationAPI, libraryAPI, notificationAPI, placementAPI } from '../../services/api';
 
 const StudentDashboard = () => {
   const { user, updateUser } = useAuth();

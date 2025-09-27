@@ -1,6 +1,6 @@
-import { Award, Briefcase, Building2, Calendar, Clock, Filter, MapPin, Search, TrendingUp, Users } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Award, Briefcase, Building2, Calendar, Clock, MapPin, Search, TrendingUp, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 const StudentPlacements = () => {
   const [opportunities, setOpportunities] = useState([]);
