@@ -8,12 +8,22 @@ const {
     getPaymentHistory,
     getPaymentReceipt,
     makePayment,
+    processRefund,
+    getPaymentGatewayConfig,
     updateFee,
+    createPaymentOrder,
+    verifyPayment,
+    bulkCreateFees,
+    applyDiscountOrWaiver,
+    getFeeReports,
+    exportFeesToCSV,
+    exportFeesToExcel,
 } = require('../controllers/feeController');
 const { auth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
 const { validateRequest } = require('../middleware/validateRequest');
-const { createFeeSchema, makePaymentSchema, updateFeeSchema } = require('../validators/feeValidation');
+const { createFeeSchema, makePaymentSchema, updateFeeSchema, bulkCreateFeesSchema, applyDiscountWaiverSchema } = require('../validators/feeValidation');
+const { paymentLimiter } = require('../middleware/security');
 
 const router = express.Router();
 
@@ -93,10 +103,33 @@ router.put('/:id', auth, requireRole('admin'), validateRequest(updateFeeSchema),
 // Delete fee (Admin only)
 router.delete('/:id', auth, requireRole('admin'), deleteFee);
 
+// Create payment order
+router.post('/payment-order', auth, paymentLimiter, createPaymentOrder);
+
+// Verify payment
+router.post('/verify-payment', auth, paymentLimiter, verifyPayment);
+
 // Make payment for fee
-router.post('/:id/pay', auth, validateRequest(makePaymentSchema), makePayment);
+router.post('/:id/pay', auth, paymentLimiter, validateRequest(makePaymentSchema), makePayment);
 
 // Get payment receipt
 router.get('/payments/:id/receipt', auth, getPaymentReceipt);
+
+// Process refund (Admin only)
+router.post('/payments/:id/refund', auth, requireRole('admin'), processRefund);
+
+// Get payment gateway configuration
+router.get('/gateway/config', auth, getPaymentGatewayConfig);
+
+// Bulk operations (Admin only)
+router.post('/bulk', auth, requireRole('admin'), validateRequest(bulkCreateFeesSchema), bulkCreateFees);
+
+// Apply discount or waiver (Admin only)
+router.post('/:id/discount-waiver', auth, requireRole('admin'), validateRequest(applyDiscountWaiverSchema), applyDiscountOrWaiver);
+
+// Reports and export
+router.get('/reports', auth, requireRole('admin'), getFeeReports);
+router.get('/export/csv', auth, requireRole('admin'), exportFeesToCSV);
+router.get('/export/excel', auth, requireRole('admin'), exportFeesToExcel);
 
 module.exports = router;

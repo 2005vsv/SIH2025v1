@@ -84,16 +84,55 @@ const UserManagement = () => {
 
   const handleCreateUser = async () => {
     try {
+      // Frontend validation
+      if (!newUser.name?.trim()) {
+        toast.error('Name is required');
+        return;
+      }
+      if (!newUser.email?.trim()) {
+        toast.error('Email is required');
+        return;
+      }
+      if (!newUser.password?.trim()) {
+        toast.error('Password is required');
+        return;
+      }
+      if (newUser.password.length < 6) {
+        toast.error('Password must be at least 6 characters long');
+        return;
+      }
+      // Check password complexity
+      const hasUpper = /[A-Z]/.test(newUser.password);
+      const hasLower = /[a-z]/.test(newUser.password);
+      const hasNumber = /\d/.test(newUser.password);
+      if (!hasUpper || !hasLower || !hasNumber) {
+        toast.error('Password must contain at least one uppercase letter, one lowercase letter, and one number');
+        return;
+      }
+
       const userData = {
-        ...newUser,
-        profile: {
-          ...newUser.profile,
-          semester: Number(newUser.profile.semester) || 1,
-          admissionYear: Number(newUser.profile.admissionYear) || new Date().getFullYear(),
-          cgpa: Number(newUser.profile.cgpa) || 0,
-          sgpa: Number(newUser.profile.sgpa) || 0
-        }
+        name: newUser.name.trim(),
+        email: newUser.email.trim(),
+        role: newUser.role,
+        password: newUser.password.trim(),
+        ...(newUser.studentId?.trim() && { studentId: newUser.studentId.trim() })
       };
+
+      // Only include profile for students
+      if (newUser.role === 'student') {
+        const profile = {};
+        if (newUser.profile.phone?.trim()) profile.phone = newUser.profile.phone.trim();
+        if (newUser.profile.address?.trim()) profile.address = newUser.profile.address.trim();
+        if (newUser.profile.department?.trim()) profile.department = newUser.profile.department.trim();
+        if (newUser.profile.semester) profile.semester = Number(newUser.profile.semester) || 1;
+        if (newUser.profile.admissionYear) profile.admissionYear = Number(newUser.profile.admissionYear) || new Date().getFullYear();
+        if (newUser.profile.cgpa !== undefined && newUser.profile.cgpa !== '' && !isNaN(Number(newUser.profile.cgpa))) profile.cgpa = Number(newUser.profile.cgpa);
+        if (newUser.profile.sgpa !== undefined && newUser.profile.sgpa !== '' && !isNaN(Number(newUser.profile.sgpa))) profile.sgpa = Number(newUser.profile.sgpa);
+
+        if (Object.keys(profile).length > 0) {
+          userData.profile = profile;
+        }
+      }
 
       await userAPI.create(userData);
       toast.success('User created successfully');
@@ -524,7 +563,7 @@ const UserManagement = () => {
                         })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(sem => (
                           <option key={sem} value={sem}>Semester {sem}</option>
                         ))}
                       </select>
@@ -748,7 +787,7 @@ const UserManagement = () => {
                         })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(sem => (
                           <option key={sem} value={sem}>Semester {sem}</option>
                         ))}
                       </select>

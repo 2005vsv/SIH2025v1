@@ -41,14 +41,17 @@ const HostelAllocationSchema = new Schema({
   status: {
     type: String,
     required: true,
-    enum: ['allocated', 'checked_in', 'checked_out', 'cancelled'],
-    default: 'allocated',
+    enum: ['pending', 'allocated', 'checked_in', 'checked_out', 'cancelled'],
+    default: 'pending',
     index: true,
   },
   depositPaid: {
     type: Number,
-    required: [true, 'Deposit amount is required'],
+    required: function() {
+      return this.status !== 'pending';
+    },
     min: [0, 'Deposit cannot be negative'],
+    default: 0,
   },
   depositRefunded: {
     type: Number,
@@ -101,25 +104,8 @@ HostelAllocationSchema.index({ roomId: 1, status: 1 });
 HostelAllocationSchema.index({ allocatedDate: -1 });
 HostelAllocationSchema.index({ userId: 1, roomId: 1 }, { unique: true });
 
-// Pre-save middleware to validate status transitions
+// Pre-save middleware to auto-set dates based on status
 HostelAllocationSchema.pre('save', function (next) {
-  if (this.isModified('status')) {
-    const validTransitions = {
-      allocated: ['checked_in', 'cancelled'],
-      checked_in: ['checked_out'],
-      checked_out: [],
-      cancelled: [],
-    };
-
-    // Use this.$__.priorDoc to get previous status if available
-    const previousStatus = this.$__.priorDoc ? this.$__.priorDoc.status : undefined;
-    const currentStatus = this.status;
-
-    if (previousStatus && !validTransitions[previousStatus]?.includes(currentStatus)) {
-      return next(new Error(`Invalid status transition from ${previousStatus} to ${currentStatus}`));
-    }
-  }
-
   // Auto-set dates based on status
   if (this.status === 'checked_in' && !this.checkInDate) {
     this.checkInDate = new Date();

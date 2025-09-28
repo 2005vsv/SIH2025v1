@@ -3,7 +3,9 @@ import {
     AlertCircle,
     CheckCircle,
     Clock,
-    XCircle
+    XCircle,
+    CreditCard,
+    X
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -14,7 +16,15 @@ const Fees = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [payingFeeId, setPayingFeeId] = useState(null);
+  const [paymentModal, setPaymentModal] = useState({ open: false, fee: null });
+  const [paymentDetails, setPaymentDetails] = useState({
+    paymentMethod: 'card',
+    cardNumber: '',
+    expiry: '',
+    cvv: '',
+    upiId: ''
+  });
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
     fetchFees();
@@ -34,24 +44,68 @@ const Fees = () => {
     }
   };
 
-  const handlePayFee = async (feeId) => {
+  const handlePayFee = (feeId) => {
+    const fee = fees.find(f => f._id === feeId);
+    if (!fee) return;
+    setPaymentModal({ open: true, fee });
+    setPaymentDetails({
+      paymentMethod: 'card',
+      cardNumber: '',
+      expiry: '',
+      cvv: '',
+      upiId: ''
+    });
+  };
+
+  const handlePaymentSubmit = async () => {
     try {
-      setPayingFeeId(feeId);
-      // Mock payment - using patch to update status
-      await feeAPI.update(feeId, { status: 'paid' });
-      toast.success('Fee payment successful!');
-      fetchFees(); // Refresh the list
+      setProcessingPayment(true);
+      const { fee } = paymentModal;
+
+      // Minimal validation
+      if (paymentDetails.paymentMethod === 'card') {
+        if (!paymentDetails.cardNumber || !paymentDetails.expiry || !paymentDetails.cvv) {
+          toast.error('Please fill all card details');
+          return;
+        }
+        if (paymentDetails.cardNumber.length < 16) {
+          toast.error('Invalid card number');
+          return;
+        }
+      } else if (paymentDetails.paymentMethod === 'upi') {
+        if (!paymentDetails.upiId || !paymentDetails.upiId.includes('@')) {
+          toast.error('Invalid UPI ID');
+          return;
+        }
+      }
+
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Mock success/failure (90% success rate)
+      if (Math.random() > 0.1) {
+        await feeAPI.pay(fee._id, {
+          amount: fee.amount,
+          paymentMethod: paymentDetails.paymentMethod,
+          transactionId: `TXN_${Date.now()}`
+        });
+        toast.success('Payment successful!');
+        setPaymentModal({ open: false, fee: null });
+        fetchFees(); // Refresh the list
+      } else {
+        toast.error('Payment failed. Please try again.');
+      }
     } catch (error) {
-      console.error('Error paying fee:', error);
+      console.error('Error processing payment:', error);
       toast.error(error.response?.data?.message || 'Payment failed');
     } finally {
-      setPayingFeeId(null);
+      setProcessingPayment(false);
     }
   };
 
   const filteredFees = fees.filter(fee => {
-    const matchesSearch = fee.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         fee.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (fee.feeType || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (fee.description || "").toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || fee.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -287,7 +341,7 @@ const Fees = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1">
                           <h3 className="text-lg font-semibold text-gray-900 truncate">
-                            {fee.type}
+                            {fee.feeType}
                           </h3>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(fee.status)}`}>
                             {fee.status.charAt(0).toUpperCase() + fee.status.slice(1)}
@@ -320,15 +374,10 @@ const Fees = () => {
                         {fee.status === 'pending' && (
                           <button
                             onClick={() => handlePayFee(fee._id)}
-                            disabled={payingFeeId === fee._id}
-                            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors flex items-center"
                           >
-                            {payingFeeId === fee._id ? (
-                              <span>⏳</span>
-                            ) : (
-                              <span>💳</span>
-                            )}
-                            {payingFeeId === fee._id ? 'Processing...' : 'Pay Now'}
+                            <span>💳</span>
+                            Pay Now
                           </button>
                         )}
 
@@ -348,8 +397,148 @@ const Fees = () => {
             </div>
           )}
         </motion.div>
-    </div>
-  );
-};
+
+        {/* Payment Modal */}
+        {paymentModal.open && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                    <CreditCard className="w-6 h-6 mr-2 text-blue-600" />
+                    Payment Gateway
+                  </h2>
+                  <button
+                    onClick={() => setPaymentModal({ open: false, fee: null })}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+                {paymentModal.fee && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600">Paying for:</p>
+                    <p className="font-semibold">{paymentModal.fee.feeType} - {paymentModal.fee.description}</p>
+                    <p className="text-lg font-bold text-blue-600">₹{paymentModal.fee.amount.toLocaleString()}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment Method
+                  </label>
+                  <select
+                    value={paymentDetails.paymentMethod}
+                    onChange={(e) => setPaymentDetails(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="card">Credit/Debit Card</option>
+                    <option value="upi">UPI</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="wallet">Digital Wallet</option>
+                    <option value="cash">Cash</option>
+                  </select>
+                </div>
+
+                {paymentDetails.paymentMethod === 'card' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Card Number
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="1234 5678 9012 3456"
+                        value={paymentDetails.cardNumber}
+                        onChange={(e) => setPaymentDetails(prev => ({ ...prev, cardNumber: e.target.value.replace(/\s/g, '') }))}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        maxLength="16"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Expiry Date
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="MM/YY"
+                          value={paymentDetails.expiry}
+                          onChange={(e) => setPaymentDetails(prev => ({ ...prev, expiry: e.target.value }))}
+                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          maxLength="5"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          CVV
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="123"
+                          value={paymentDetails.cvv}
+                          onChange={(e) => setPaymentDetails(prev => ({ ...prev, cvv: e.target.value }))}
+                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          maxLength="3"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {paymentDetails.paymentMethod === 'upi' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      UPI ID
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="user@upi"
+                      value={paymentDetails.upiId}
+                      onChange={(e) => setPaymentDetails(prev => ({ ...prev, upiId: e.target.value }))}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                )}
+
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    onClick={() => setPaymentModal({ open: false, fee: null })}
+                    className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    disabled={processingPayment}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePaymentSubmit}
+                    disabled={processingPayment}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  >
+                    {processingPayment ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Pay ₹{paymentModal.fee?.amount.toLocaleString()}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
 export default Fees;

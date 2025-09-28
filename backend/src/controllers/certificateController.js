@@ -1,5 +1,8 @@
 const Certificate = require('../models/Certificate');
 const User = require('../models/User');
+const certificateGenerator = require('../utils/certificateGenerator');
+const fs = require('fs');
+const path = require('path');
 
 // Remove all TypeScript/ESM syntax and fix JS errors
 
@@ -183,6 +186,28 @@ exports.issueCertificate = async (req, res) => {
     const certificateNumber = `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
     const verificationHash = `${certificateNumber}-${Date.now()}`;
 
+    // Generate PDF
+    const pdfBuffer = await certificateGenerator.generateCertificate({
+      type,
+      title,
+      description,
+      certificateNumber,
+      issueDate: new Date(),
+      metadata: {
+        ...metadata,
+        institution: process.env.INSTITUTION_NAME || 'Your Institution Name'
+      }
+    }, student);
+
+    // Save PDF to file system
+    const pdfDir = path.join(__dirname, '../uploads/certificates');
+    if (!fs.existsSync(pdfDir)) {
+      fs.mkdirSync(pdfDir, { recursive: true });
+    }
+
+    const pdfPath = path.join(pdfDir, `${certificateNumber}.pdf`);
+    fs.writeFileSync(pdfPath, pdfBuffer);
+
     const certificate = new Certificate({
       userId,
       type,
@@ -190,11 +215,11 @@ exports.issueCertificate = async (req, res) => {
       description,
       certificateNumber,
       verificationHash,
-      qrCode: `${process.env.BASE_URL}/api/certificates/verify/${certificateNumber}`,
-      pdfUrl: '', // Will be generated after creation
+      qrCode: `${process.env.BASE_URL || 'http://localhost:5001'}/api/certificates/verify/${certificateNumber}`,
+      pdfUrl: `/uploads/certificates/${certificateNumber}.pdf`,
       metadata: {
         ...metadata,
-        institution: 'Your Institution Name' // Replace with actual institution
+        institution: process.env.INSTITUTION_NAME || 'Your Institution Name'
       },
       issueDate: new Date(),
       downloadCount: 0,
@@ -502,16 +527,34 @@ exports.downloadCertificate = async (req, res) => {
       throw new APIError('Certificate is not available for download', 400);
     }
 
-    // In a real implementation, you would generate a PDF here
-    // For now, we'll return the certificate data
-    res.json({
-      success: true,
-      message: 'Certificate ready for download',
-      data: {
-        downloadUrl: `/api/certificates/${id}/download`,
-        certificate
+    // Increment download count
+    await Certificate.findByIdAndUpdate(id, { $inc: { downloadCount: 1 } });
+
+    // Serve the PDF file
+    const pdfPath = path.join(__dirname, '../uploads/certificates', `${certificate.certificateNumber}.pdf`);
+
+    if (!fs.existsSync(pdfPath)) {
+      // If PDF doesn't exist, generate it on the fly
+      const student = certificate.userId;
+      const pdfBuffer = await certificateGenerator.generateCertificate(certificate, student);
+
+      // Ensure directory exists
+      const pdfDir = path.dirname(pdfPath);
+      if (!fs.existsSync(pdfDir)) {
+        fs.mkdirSync(pdfDir, { recursive: true });
       }
-    });
+
+      fs.writeFileSync(pdfPath, pdfBuffer);
+    }
+
+    // Set headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${certificate.title.replace(/[^a-zA-Z0-9]/g, '_')}_${certificate.certificateNumber}.pdf"`);
+
+    // Stream the PDF file
+    const fileStream = fs.createReadStream(pdfPath);
+    fileStream.pipe(res);
+
   } catch (error) {
     throw new APIError(error.message, 400);
   }

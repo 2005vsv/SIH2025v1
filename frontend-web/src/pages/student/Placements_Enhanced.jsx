@@ -51,7 +51,7 @@ const StudentPlacements = () => {
           company: 'TechCorp Inc.',
           location: 'Bangalore, India',
           type: 'full-time',
-          salary: { min, max, currency: 'INR' },
+          salary: { min: 20000, max: 40000, currency: 'INR' },
           description: 'We are looking for a talented Software Engineer to join our dynamic team...',
           requirements: ['Bachelor\'s in Computer Science', '2+ years experience', 'Strong problem-solving skills'],
           skills: ['JavaScript', 'React', 'Node.js', 'MongoDB', 'AWS'],
@@ -74,7 +74,7 @@ const StudentPlacements = () => {
           company: 'DataFlow Analytics',
           location: 'Mumbai, India',
           type: 'full-time',
-          salary: { min, max, currency: 'INR' },
+          salary: { min: 600000, max: 1200000, currency: 'INR' },
           description: 'Join our data science team to work on cutting-edge AI/ML projects...',
           requirements: ['Master\'s in Data Science/Statistics', 'Python expertise', 'Machine Learning experience'],
           skills: ['Python', 'TensorFlow', 'Pandas', 'SQL', 'Tableau'],
@@ -83,7 +83,7 @@ const StudentPlacements = () => {
           postedDate: '2024-01-20',
           deadline: '2024-02-20',
           status: 'active',
-          applicationsCount,
+          applicationsCount: 23,
           companyInfo: {
             industry: 'Analytics',
             size: '100-500 employees',
@@ -96,7 +96,7 @@ const StudentPlacements = () => {
           company: 'StartupXYZ',
           location: 'Remote',
           type: 'internship',
-          salary: { min, max, currency: 'INR' },
+          salary: { min: 400000, max: 800000, currency: 'INR' },
           description: 'Exciting internship opportunity for frontend development...',
           requirements: ['Currently pursuing Computer Science degree', 'React knowledge', 'Portfolio of projects'],
           skills: ['React', 'JavaScript', 'CSS', 'Git'],
@@ -105,7 +105,7 @@ const StudentPlacements = () => {
           postedDate: '2024-01-25',
           deadline: '2024-02-25',
           status: 'active',
-          applicationsCount,
+          applicationsCount: 15,
           companyInfo: {
             industry: 'Technology',
             size: '10-50 employees'
@@ -157,7 +157,7 @@ const StudentPlacements = () => {
           version: 'v2.0',
           uploadDate: '2024-01-15',
           fileUrl: '/resumes/resume_v2.pdf',
-          isDefault,
+          isDefault: true,
           downloadCount: 12
         },
         {
@@ -166,7 +166,7 @@ const StudentPlacements = () => {
           version: 'v1.5',
           uploadDate: '2024-01-10',
           fileUrl: '/resumes/resume_ds_v1.pdf',
-          isDefault,
+          isDefault: false,
           downloadCount: 8
         }
       ]);
@@ -182,7 +182,7 @@ const StudentPlacements = () => {
           mode: 'online',
           meetingLink: 'https://meet.google.com/xyz-abc-def',
           interviewers: ['John Smith', 'Sarah Johnson'],
-          round,
+          round: 1,
           instructions: 'Technical round focusing on coding and system design',
           status: 'scheduled'
         }

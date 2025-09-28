@@ -1,5 +1,8 @@
 const express = require('express');
 const { auth, authorize } = require('../middleware/auth');
+const { seedAcademicData } = require('../utils/seedAcademicData');
+const SystemConfig = require('../models/SystemConfig');
+const notificationService = require('../services/notificationService');
 
 const router = express.Router();
 
@@ -39,60 +42,132 @@ const router = express.Router();
                       type: object
  */
 router.get('/config', auth, authorize('admin'), async (req, res) => {
+   try {
+     const systemConfig = await SystemConfig.getConfig();
+
+     const config = {
+       app: {
+         name: 'Student Portal',
+         version: '1.0.0',
+         environment: process.env.NODE_ENV,
+         uptime: process.uptime(),
+         maintenance: false
+       },
+       database: {
+         status: 'connected',
+         host: process.env.MONGODB_URI ? 'MongoDB Atlas' : 'Local MongoDB',
+         lastBackup: new Date(Date.now() - 86400000).toISOString()
+       },
+       security: {
+         authEnabled: true,
+         rateLimitEnabled: false,
+         corsEnabled: true,
+         lastSecurityUpdate: new Date().toISOString()
+       },
+       features: {
+         chatbot: true,
+         notifications: true,
+         analytics: true,
+         fileUpload: true
+       },
+       settings: systemConfig.toObject()
+     };
+
+     res.json({
+       success: true,
+       data: config
+     });
+   } catch (error) {
+     res.status(500).json({
+       success: false,
+       message: 'Failed to retrieve system configuration',
+       error: process.env.NODE_ENV === 'development' ? error : undefined
+     });
+   }
+ });
+
+/**
+ * @swagger
+ * /api/system/config:
+ *   put:
+ *     summary: Update system configuration (Admin only)
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               general:
+ *                 type: object
+ *               notifications:
+ *                 type: object
+ *               security:
+ *                 type: object
+ *               academic:
+ *                 type: object
+ *               fees:
+ *                 type: object
+ *               library:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: System configuration updated successfully
+ */
+router.put('/config', auth, authorize('admin'), async (req, res) => {
   try {
-    const config = {
-      app: {
-        name: 'Student Portal',
-        version: '1.0.0',
-        environment: process.env.NODE_ENV,
-        uptime: process.uptime(),
-        maintenance: false
-      },
-      database: {
-        status: 'connected',
-        host: process.env.MONGODB_URI ? 'MongoDB Atlas' : 'Local MongoDB',
-        lastBackup: new Date(Date.now() - 86400000).toISOString()
-      },
-      security: {
-        authEnabled,
-        rateLimitEnabled,
-        corsEnabled,
-        lastSecurityUpdate: new Date().toISOString()
-      },
-      features: {
-        chatbot,
-        notifications,
-        analytics,
-        fileUpload: true
+    const updates = req.body;
+
+    // Update the configuration
+    const config = await SystemConfig.updateConfig(updates);
+
+    // Check if notification settings were updated and send test notifications
+    if (updates.notifications) {
+      const oldConfig = await SystemConfig.getConfig();
+      const oldNotifications = oldConfig.notifications || {};
+
+      // Send test notifications for newly enabled channels
+      if (updates.notifications.emailEnabled && !oldNotifications.emailEnabled) {
+        await notificationService.sendSystemTestNotification('email');
       }
-    };
+      if (updates.notifications.smsEnabled && !oldNotifications.smsEnabled) {
+        await notificationService.sendSystemTestNotification('sms');
+      }
+      if (updates.notifications.pushEnabled && !oldNotifications.pushEnabled) {
+        await notificationService.sendSystemTestNotification('push');
+      }
+    }
 
     res.json({
-      success,
+      success: true,
+      message: 'System configuration updated successfully',
       data: config
     });
   } catch (error) {
     res.status(500).json({
-      success,
-      message: 'Failed to retrieve system configuration',
-      error: process.env.NODE_ENV === 'development' ? error : undefined
+      success: false,
+      message: 'Failed to update system configuration',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
 
 /**
- * @swagger
- * /api/system/stats:
- *   get:
- *     summary: Get system statistics (Admin only)
- *     tags: [System]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: System statistics retrieved successfully
- */
-router.get('/stats', auth, authorize('admin'), async (req, res) => {
+  * @swagger
+  * /api/system/stats:
+  *   get:
+  *     summary: Get system statistics (Admin only)
+  *     tags: [System]
+  *     security:
+  *       - bearerAuth: []
+  *     responses:
+  *       200:
+  *         description: System statistics retrieved successfully
+  */
+ router.get('/stats', auth, authorize('admin'), async (req, res) => {
   try {
     const stats = {
       users: {
@@ -286,9 +361,47 @@ router.get('/logs', auth, authorize('admin'), async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({
-      success,
+      success: false,
       message: 'Failed to retrieve system logs',
       error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/system/seed-academic:
+ *   post:
+ *     summary: Seed academic data for testing (Admin only)
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Academic data seeded successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/seed-academic', auth, authorize('admin'), async (req, res) => {
+  try {
+    await seedAcademicData();
+
+    res.json({
+      success: true,
+      message: 'Academic data seeded successfully',
+      data: {
+        seededAt: new Date().toISOString(),
+        description: 'Sample semesters, courses, grades, and exams created for testing'
+      }
+    });
+  } catch (error) {
+    console.error('Seed academic data error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to seed academic data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

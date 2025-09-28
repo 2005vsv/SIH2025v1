@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { examAPI, feeAPI, gamificationAPI, libraryAPI, notificationAPI, placementAPI } from '../../services/api';
+import { authAPI, examAPI, feeAPI, gamificationAPI, libraryAPI, notificationAPI, placementAPI } from '../../services/api';
 
 const StudentDashboard = () => {
   const { user, updateUser } = useAuth();
@@ -55,37 +55,28 @@ const StudentDashboard = () => {
 
   const fetchUserProfile = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      const response = await fetch('http://localhost:5000/api/users/profile', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      if (response.ok) {
-        const userData = await response.json();
-        if (userData.user && userData.user.profile) {
-          const cgpa = userData.user.profile.cgpa ?? 0;
-          const sgpa = userData.user.profile.sgpa ?? 0;
-          const currentSemester = userData.user.profile.semester ?? 1;
-          setStats(prev => ({
-            ...prev,
-            cgpa,
-            sgpa,
-            currentSemester
-          }));
-          if (updateUser) {
-            updateUser({
-              ...userData.user,
-              profile: {
-                ...userData.user.profile,
-                cgpa,
-                sgpa,
-                semester: currentSemester
-              }
-            });
-          }
+      const response = await authAPI.me();
+      if (response.data && response.data.user && response.data.user.profile) {
+        const userData = response.data.user;
+        const cgpa = userData.profile.cgpa ?? 0;
+        const sgpa = userData.profile.sgpa ?? 0;
+        const currentSemester = userData.profile.semester ?? 1;
+        setStats(prev => ({
+          ...prev,
+          cgpa,
+          sgpa,
+          currentSemester
+        }));
+        if (updateUser) {
+          updateUser({
+            ...userData,
+            profile: {
+              ...userData.profile,
+              cgpa,
+              sgpa,
+              semester: currentSemester
+            }
+          });
         }
       }
     } catch (profileError) {
@@ -234,6 +225,7 @@ const StudentDashboard = () => {
     }
   };
 
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">Loading...</div>
@@ -292,18 +284,39 @@ const StudentDashboard = () => {
           {notifications.slice(0, 3).map((notification) => (
             <div
               key={notification.id}
-              className={`flex items-start space-x-3 p-2 rounded-lg ${
-                !notification.read ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
+              className={`flex items-start space-x-3 p-3 rounded-lg border ${
+                notification.category === 'fee'
+                  ? (!notification.read ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200')
+                  : (!notification.read ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200')
               }`}
             >
               <div className={`w-2 h-2 rounded-full mt-2 ${
-                !notification.read ? 'bg-blue-500' : 'bg-gray-400'
+                notification.category === 'fee'
+                  ? (!notification.read ? 'bg-red-500' : 'bg-orange-400')
+                  : (!notification.read ? 'bg-blue-500' : 'bg-gray-400')
               }`} />
-              <div>
-                <div className="font-medium">{notification.title}</div>
-                <div className="text-gray-600 text-sm">{notification.message}</div>
+              <div className="flex-1">
+                <div className="font-medium flex items-center gap-2">
+                  {notification.title}
+                  {notification.category === 'fee' && (
+                    <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full font-semibold">
+                      Fee
+                    </span>
+                  )}
+                </div>
+                <div className="text-gray-600 text-sm mt-1">{notification.message}</div>
+                {notification.data?.amount && (
+                  <div className="text-sm font-semibold text-red-600 mt-1">
+                    Amount: ₹{notification.data.amount.toLocaleString()}
+                  </div>
+                )}
+                {notification.data?.dueDate && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    Due: {new Date(notification.data.dueDate).toLocaleDateString()}
+                  </div>
+                )}
               </div>
-              <div className="ml-auto text-xs text-gray-400">{new Date(notification.createdAt).toLocaleDateString()}</div>
+              <div className="text-xs text-gray-400">{new Date(notification.createdAt).toLocaleDateString()}</div>
             </div>
           ))}
           {notifications.length === 0 && (

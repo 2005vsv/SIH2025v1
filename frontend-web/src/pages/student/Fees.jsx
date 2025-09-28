@@ -1,3 +1,7 @@
+import React, { useEffect, useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import {
   Calendar,
   CreditCard,
@@ -17,12 +21,8 @@ import {
   ArrowRight,
   ArrowLeft,
   Wallet,
-  CreditCard as Card
+  Card
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
 import { feeAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import BackButton from '../../components/BackButton';
@@ -30,17 +30,18 @@ import BackButton from '../../components/BackButton';
 const StudentFees = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
+
+  // State management
   const [fees, setFees] = useState([]);
-  const [paymentHistory, setPaymentHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('dues');
   const [paymentModal, setPaymentModal] = useState({ isOpen: false, fee: null });
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('card');
-  const [isUsingMockData, setIsUsingMockData] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
 
+  // Fetch fees on component mount
   useEffect(() => {
     if (!isAuthenticated) {
       toast.error('Please login to view fees');
@@ -48,190 +49,204 @@ const StudentFees = () => {
       return;
     }
     fetchFees();
-    fetchPaymentHistory();
-    // eslint-disable-next-line
   }, [isAuthenticated, navigate]);
 
+  // Fetch fees from API
   const fetchFees = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        toast.error('Please login to view fees');
-        return;
-      }
       const response = await feeAPI.getMy();
-      if (response.data.success) {
-        setFees(response.data.data.fees || []);
-        setIsUsingMockData(false);
-        toast.success('Fees loaded successfully from server');
-      } else {
-        // Fallback to mock data for development
-        const mockFees = [
-          {
-            _id: '1',
-            feeType: 'tuition',
-            amount: 25000,
-            description: 'Semester 6 Tuition Fee',
-            dueDate: '2024-12-31',
-            status: 'pending',
-            semester: 6,
-            academicYear: '2024-25'
-          },
-          {
-            _id: '2',
-            feeType: 'hostel',
-            amount: 5000,
-            description: 'Hostel Fee for December',
-            dueDate: '2024-12-15',
-            status: 'paid',
-            paidAt: '2024-11-10',
-            paidAmount: 5000,
-            transactionId: 'TXN123456789'
-          },
-          {
-            _id: '3',
-            feeType: 'library',
-            amount: 200,
-            description: 'Library Fine',
-            dueDate: '2024-11-30',
-            status: 'overdue'
-          }
-        ];
-        setFees(mockFees);
-        setIsUsingMockData(true);
-        toast.error(response.data.message || 'Failed to load fees - using mock data');
-      }
-    } catch (error) {
-      // Fallback to mock data for development
-      const mockFees = [
-        {
-          _id: '1',
-          feeType: 'tuition',
-          amount: 25000,
-          description: 'Semester 6 Tuition Fee',
-          dueDate: '2024-12-31',
-          status: 'pending',
-          semester: 6,
-          academicYear: '2024-25'
-        },
-        {
-          _id: '2',
-          feeType: 'hostel',
-          amount: 5000,
-          description: 'Hostel Fee for December',
-          dueDate: '2024-12-15',
-          status: 'paid',
-          paidAt: '2024-11-10',
-          paidAmount: 5000,
-          transactionId: 'TXN123456789'
-        },
-        {
-          _id: '3',
-          feeType: 'library',
-          amount: 200,
-          description: 'Library Fine',
-          dueDate: '2024-11-30',
-          status: 'overdue'
-        },
-        {
-          _id: '4',
-          feeType: 'examination',
-          amount: 1200,
-          description: 'Semester End Examination Fee',
-          dueDate: '2024-12-01',
-          status: 'pending'
+      console.log('API Response:', response); // Debug log
+
+      let feesArray = [];
+      if (response?.data?.success) {
+        // Try different possible response structures
+        if (Array.isArray(response.data.data?.fees)) {
+          feesArray = response.data.data.fees;
+        } else if (Array.isArray(response.data?.fees)) {
+          feesArray = response.data.fees;
+        } else if (Array.isArray(response.data?.data)) {
+          feesArray = response.data.data;
+        } else if (Array.isArray(response.data)) {
+          feesArray = response.data;
         }
-      ];
-      setFees(mockFees);
-      setIsUsingMockData(true);
-      toast.error('Failed to connect to server - using mock data');
+        toast.success('Fees loaded successfully');
+      } else {
+        // Fallback to empty array
+        feesArray = [];
+        toast.error(response?.data?.message || 'Failed to load fees');
+      }
+
+      // Ensure all items are valid objects
+      feesArray = feesArray.filter(fee => fee && typeof fee === 'object');
+      setFees(feesArray);
+    } catch (error) {
+      console.error('Error fetching fees:', error);
+      setFees([]);
+      toast.error('Failed to load fees');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchPaymentHistory = async () => {
-    try {
-      // Mock payment history for now - this would come from the API
-      const mockHistory = [
-        {
-          _id: '1',
-          feeId: 'fee1',
-          amount: 5000,
-          transactionId: 'TXN123456789',
-          paymentMethod: 'card',
-          paidAt: '2024-01-15T10:30:00Z',
-          status: 'success',
-          receipt: 'receipt1.pdf'
-        },
-        {
-          _id: '2',
-          feeId: 'fee2',
-          amount: 200,
-          transactionId: 'TXN987654321',
-          paymentMethod: 'upi',
-          paidAt: '2024-02-10T14:20:00Z',
-          status: 'success',
-          receipt: 'receipt2.pdf'
-        }
-      ];
-      setPaymentHistory(mockHistory);
-    } catch (error) {
-      console.error('Error fetching payment history:', error);
-    }
-  };
-
+  // Handle payment
   const handlePayment = async (fee) => {
+    if (!fee || !fee._id) {
+      toast.error('Invalid fee data');
+      return;
+    }
+
     try {
       setPaymentLoading(true);
-      const paymentData = {
-        paymentMethod: selectedPaymentMethod,
-        amount: fee.amount - (fee.paidAmount || 0)
-      };
-      const response = await feeAPI.pay(fee._id, paymentData);
-      if (response.data.success) {
-        toast.success('Payment successful!');
-        setPaymentModal({ isOpen: false, fee: null });
-        fetchFees();
-        fetchPaymentHistory();
+
+      // Create payment order
+      const orderResponse = await feeAPI.createPaymentOrder({
+        feeId: fee._id,
+        gateway: 'razorpay' // or 'manual'
+      });
+
+      if (!orderResponse?.data?.success) {
+        throw new Error(orderResponse?.data?.message || 'Failed to create payment order');
+      }
+
+      const orderData = orderResponse.data.data;
+
+      if (orderData.gateway === 'manual') {
+        // Manual payment - directly verify
+        const verifyResponse = await feeAPI.verifyPayment({
+          feeId: fee._id,
+          gateway: 'manual',
+          amount: paymentAmount ? Number(paymentAmount) : undefined
+        });
+
+        if (verifyResponse?.data?.success) {
+          toast.success('Payment successful!');
+          setPaymentModal({ isOpen: false, fee: null });
+          setPaymentAmount('');
+          fetchFees(); // Refresh fees
+        } else {
+          throw new Error(verifyResponse?.data?.message || 'Payment verification failed');
+        }
       } else {
-        throw new Error(response.data.message);
+        // Gateway payment - would integrate with Razorpay SDK here
+        // For now, simulate success
+        toast.success('Payment order created! In real implementation, this would redirect to payment gateway.');
+        setPaymentModal({ isOpen: false, fee: null });
+        setPaymentAmount('');
       }
     } catch (error) {
+      console.error('Payment error:', error);
       toast.error(error.message || 'Payment failed. Please try again.');
     } finally {
       setPaymentLoading(false);
     }
   };
 
+  // Download receipt
   const downloadReceipt = async (feeId) => {
+    if (!feeId) {
+      toast.error('Invalid fee ID');
+      return;
+    }
+
     try {
       toast.loading('Downloading receipt...');
       const response = await feeAPI.generateReceipt(feeId);
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `receipt-${feeId}.pdf`;
-      link.click();
-      toast.dismiss();
-      toast.success('Receipt downloaded successfully!');
+      if (response?.data) {
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `receipt-${feeId}.pdf`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+        toast.dismiss();
+        toast.success('Receipt downloaded successfully!');
+      } else {
+        throw new Error('No receipt data received');
+      }
     } catch (error) {
+      console.error('Receipt download error:', error);
       toast.dismiss();
       toast.error('Failed to download receipt');
     }
   };
 
-  const filteredFees = fees.filter(fee => {
-    const matchesFilter = filter === 'all' || fee.status === filter;
-    const matchesSearch = fee.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fee.feeType.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+  // Filtered fees with robust null checks
+  const filteredFees = useMemo(() => {
+    if (!Array.isArray(fees)) return [];
 
+    return fees.filter(fee => {
+      try {
+        // Skip invalid fee objects
+        if (!fee || typeof fee !== 'object' || !fee._id) return false;
+
+        // Status filter
+        const feeStatus = (typeof fee.status === 'string' ? fee.status : '').toLowerCase();
+        const matchesFilter = filter === 'all' || feeStatus === filter;
+
+        // Search filter - safe string conversion
+        const safeSearchTerm = (typeof searchTerm === 'string' ? searchTerm : '').toLowerCase().trim();
+        const feeDescription = (typeof fee.description === 'string' ? fee.description : '').toLowerCase();
+        const feeType = (typeof fee.feeType === 'string' ? fee.feeType : '').toLowerCase();
+
+        const matchesSearch = !safeSearchTerm ||
+          feeDescription.includes(safeSearchTerm) ||
+          feeType.includes(safeSearchTerm);
+
+        return matchesFilter && matchesSearch;
+      } catch (error) {
+        console.warn('Error filtering fee:', error, fee);
+        return false;
+      }
+    });
+  }, [fees, filter, searchTerm]);
+
+  // Calculate totals with null checks
+  const totalDues = useMemo(() => {
+    if (!Array.isArray(fees)) return 0;
+
+    return fees.reduce((sum, fee) => {
+      if (!fee || typeof fee !== 'object') return sum;
+
+      const status = fee.status || '';
+      if (status === 'pending' || status === 'overdue') {
+        const amount = Number(fee.amount) || 0;
+        const paidAmount = Number(fee.paidAmount) || 0;
+        return sum + Math.max(0, amount - paidAmount);
+      }
+      return sum;
+    }, 0);
+  }, [fees]);
+
+  const totalPaid = useMemo(() => {
+    if (!Array.isArray(fees)) return 0;
+
+    return fees.reduce((sum, fee) => {
+      if (!fee || typeof fee !== 'object') return sum;
+
+      const status = fee.status || '';
+      if (status === 'paid') {
+        return sum + (Number(fee.amount) || 0);
+      }
+      return sum;
+    }, 0);
+  }, [fees]);
+
+  const overdueCount = useMemo(() => {
+    if (!Array.isArray(fees)) return 0;
+
+    return fees.filter(fee =>
+      fee &&
+      typeof fee === 'object' &&
+      (fee.status || '') === 'overdue'
+    ).length;
+  }, [fees]);
+
+  // Status styling
   const getStatusColor = (status) => {
-    switch (status) {
+    const safeStatus = status || '';
+    switch (safeStatus) {
       case 'paid': return 'bg-green-100 text-green-800 border-green-200';
       case 'pending': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'overdue': return 'bg-red-100 text-red-800 border-red-200';
@@ -241,7 +256,8 @@ const StudentFees = () => {
   };
 
   const getStatusIcon = (status) => {
-    switch (status) {
+    const safeStatus = status || '';
+    switch (safeStatus) {
       case 'paid': return <CheckCircle className="w-4 h-4 text-green-600 inline mr-1" />;
       case 'pending': return <Clock className="w-4 h-4 text-blue-600 inline mr-1" />;
       case 'overdue': return <AlertTriangle className="w-4 h-4 text-red-600 inline mr-1" />;
@@ -250,33 +266,26 @@ const StudentFees = () => {
     }
   };
 
-  const totalDues = fees.filter(fee => fee.status === 'pending' || fee.status === 'overdue').reduce((sum, fee) => sum + (fee.amount - (fee.paidAmount || 0)), 0);
-  const totalPaid = fees.filter(fee => fee.status === 'paid').reduce((sum, fee) => sum + fee.amount, 0);
-  const overdueCount = fees.filter(fee => fee.status === 'overdue').length;
-
+  // Loading state
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">Loading...</div>
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-4">
+    <div className="max-w-6xl mx-auto p-4">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
+        <BackButton />
         <h1 className="text-3xl font-bold mb-2">Fee Management</h1>
         <p className="text-lg text-gray-600">Manage your fees, make payments, and view transaction history</p>
-        {/* Mock Data Indicator */}
-        {isUsingMockData && (
-          <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-lg p-3 mt-4 text-sm">
-            <strong>Development Mode:</strong> Currently showing mock data.<br />
-            Please ensure you're logged in and the backend server is running to see real data.
-          </div>
-        )}
       </motion.div>
 
       {/* Stats Cards */}
@@ -315,187 +324,117 @@ const StudentFees = () => {
         </motion.div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 flex space-x-6 mb-6">
-        <button
-          onClick={() => setActiveTab('dues')}
-          className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'dues' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-        >
-          Fee Dues
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'history' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-        >
-          Payment History
-        </button>
-      </div>
-
-      {activeTab === 'dues' && (
-        <>
-          {/* Search and Filter */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8 flex flex-col md:flex-row gap-4"
+      {/* Search and Filter */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8 flex flex-col md:flex-row gap-4"
+      >
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search fees by description or type..."
+            value={searchTerm || ''}
+            onChange={(e) => setSearchTerm(e.target.value || '')}
+            className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
+          />
+        </div>
+        <div>
+          <select
+            value={filter || 'all'}
+            onChange={(e) => setFilter(e.target.value || 'all')}
+            className="pl-3 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
           >
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search fees..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
-              />
-            </div>
-            <div>
-              <Filter className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="pl-3 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="partial">Partial</option>
+            <option value="paid">Paid</option>
+            <option value="overdue">Overdue</option>
+          </select>
+        </div>
+      </motion.div>
+
+      {/* Fees List */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto"
+      >
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fee Type</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredFees.map((fee, index) => (
+              <motion.tr
+                key={fee?._id || `fee-${index}`}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 * index }}
+                className="hover:bg-gray-50"
               >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="paid">Paid</option>
-                <option value="overdue">Overdue</option>
-              </select>
-            </div>
-          </motion.div>
-
-          {/* Fees List */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto"
-          >
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fee Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredFees.map((fee, index) => (
-                  <motion.tr
-                    key={fee._id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 * index }}
-                    className="hover:bg-gray-50"
-                  >
-                    <td className="px-4 py-3">{fee.feeType.replace('_', ' ')}</td>
-                    <td className="px-4 py-3">
-                      {fee.description}
-                      {fee.academicYear && (
-                        <div className="text-xs text-gray-400">Academic Year: {fee.academicYear}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      ₹{fee.amount.toLocaleString()}
-                      {fee.paidAmount && fee.paidAmount > 0 && (
-                        <div className="text-xs text-green-600">Paid: ₹{fee.paidAmount.toLocaleString()}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">{new Date(fee.dueDate).toLocaleDateString()}</td>
-                    <td className={`px-4 py-3 ${getStatusColor(fee.status)} rounded-lg`}>
-                      {getStatusIcon(fee.status)}
-                      {fee.status.charAt(0).toUpperCase() + fee.status.slice(1)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {fee.status !== 'paid' && (
-                        <button
-                          onClick={() => setPaymentModal({ isOpen: true, fee })}
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        >
-                          <CreditCard className="w-4 h-4 mr-1" />
-                          Pay Now
-                        </button>
-                      )}
-                      {fee.status === 'paid' && (
-                        <button
-                          onClick={() => downloadReceipt(fee._id)}
-                          className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        >
-                          <Download className="w-4 h-4 mr-1" />
-                          Receipt
-                        </button>
-                      )}
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-            {filteredFees.length === 0 && (
-              <div className="p-6 text-center text-gray-500">No fees found matching your criteria</div>
-            )}
-          </motion.div>
-        </>
-      )}
-
-      {activeTab === 'history' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto"
-        >
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transaction ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment Method</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paymentHistory.map((payment, index) => (
-                <motion.tr
-                  key={payment._id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 * index }}
-                  className="hover:bg-gray-50"
-                >
-                  <td className="px-4 py-3">{payment.transactionId}</td>
-                  <td className="px-4 py-3">₹{payment.amount.toLocaleString()}</td>
-                  <td className="px-4 py-3">{payment.paymentMethod.toUpperCase()}</td>
-                  <td className="px-4 py-3">{new Date(payment.paidAt).toLocaleDateString()}</td>
-                  <td className={`px-4 py-3 ${getStatusColor(payment.status)} rounded-lg`}>
-                    {getStatusIcon(payment.status)}
-                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                  </td>
-                  <td className="px-4 py-3">
-                    {payment.receipt && (
-                      <button
-                        onClick={() => downloadReceipt(payment.feeId)}
-                        className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        Receipt
-                      </button>
-                    )}
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-          {paymentHistory.length === 0 && (
-            <div className="p-6 text-center text-gray-500">No payment history available</div>
-          )}
-        </motion.div>
-      )}
+                <td className="px-4 py-3">
+                  {(fee?.feeType || '').toString().replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="font-medium">{fee?.description || 'N/A'}</div>
+                  {fee?.academicYear && (
+                    <div className="text-xs text-gray-400">Academic Year: {fee.academicYear}</div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="font-medium">₹{(fee?.amount || 0).toLocaleString()}</div>
+                  {fee?.paidAmount && fee.paidAmount > 0 && (
+                    <div className="text-xs text-green-600">Paid: ₹{fee.paidAmount.toLocaleString()}</div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {fee?.dueDate ? new Date(fee.dueDate).toLocaleDateString() : 'N/A'}
+                </td>
+                <td className={`px-4 py-3 ${getStatusColor(fee?.status)} rounded-lg`}>
+                  {getStatusIcon(fee?.status)}
+                  {((fee?.status || '').charAt(0).toUpperCase() + (fee?.status || '').slice(1))}
+                </td>
+                <td className="px-4 py-3">
+                  {(fee?.status !== 'paid') && (
+                    <button
+                      onClick={() => setPaymentModal({ isOpen: true, fee })}
+                      className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <CreditCard className="w-4 h-4 mr-1" />
+                      Pay Now
+                    </button>
+                  )}
+                  {fee?.status === 'paid' && (
+                    <button
+                      onClick={() => downloadReceipt(fee._id)}
+                      className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Receipt
+                    </button>
+                  )}
+                </td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </table>
+        {filteredFees.length === 0 && (
+          <div className="p-6 text-center text-gray-500">
+            No fees found matching your criteria
+          </div>
+        )}
+      </motion.div>
 
       {/* Payment Modal */}
       {paymentModal.isOpen && paymentModal.fee && (
@@ -514,14 +453,26 @@ const StudentFees = () => {
                 ×
               </button>
             </div>
-            <div className="mb-2 font-semibold">{paymentModal.fee.description}</div>
-            <div className="mb-2 text-sm text-gray-500">{paymentModal.fee.feeType} Fee</div>
-            <div className="mb-4 text-2xl font-bold text-blue-600">
-              ₹{(paymentModal.fee.amount - (paymentModal.fee.paidAmount || 0)).toLocaleString()}
-            </div>
+            <div className="mb-2 font-semibold">{paymentModal.fee?.description || 'N/A'}</div>
+             <div className="mb-2 text-sm text-gray-500">
+               {paymentModal.fee?.feeType || 'N/A'} Fee
+             </div>
+             <div className="mb-4">
+               <div className="text-sm text-gray-600 mb-1">Outstanding Amount: ₹{((paymentModal.fee?.amount || 0) - (paymentModal.fee?.paidAmount || 0)).toLocaleString()}</div>
+               <label className="block text-sm font-medium mb-1">Payment Amount</label>
+               <input
+                 type="number"
+                 value={paymentAmount}
+                 onChange={(e) => setPaymentAmount(e.target.value)}
+                 placeholder={`Max: ${((paymentModal.fee?.amount || 0) - (paymentModal.fee?.paidAmount || 0)).toLocaleString()}`}
+                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                 min="1"
+                 max={(paymentModal.fee?.amount || 0) - (paymentModal.fee?.paidAmount || 0)}
+               />
+             </div>
             <div className="mb-4">
               <div className="font-semibold mb-2">Payment Method</div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {[
                   { id: 'card', label: 'Credit/Debit Card', icon: Card },
                   { id: 'upi', label: 'UPI', icon: Wallet },
@@ -539,7 +490,7 @@ const StudentFees = () => {
                     }`}
                   >
                     <Icon className="w-5 h-5 mb-1" />
-                    {label}
+                    <span className="text-center">{label}</span>
                   </button>
                 ))}
               </div>

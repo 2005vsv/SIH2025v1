@@ -24,9 +24,18 @@ const FeesManagement = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingFee, setEditingFee] = useState(null);
 
   const [newFee, setNewFee] = useState({
     userId: '',
+    feeType: 'tuition',
+    amount: 0,
+    description: '',
+    dueDate: ''
+  });
+
+  const [editFee, setEditFee] = useState({
     feeType: 'tuition',
     amount: 0,
     description: '',
@@ -68,6 +77,29 @@ const FeesManagement = () => {
     }
   };
 
+  const handleEditFee = (fee) => {
+    setEditingFee(fee);
+    setEditFee({
+      feeType: fee.feeType,
+      amount: fee.amount,
+      description: fee.description,
+      dueDate: fee.dueDate ? new Date(fee.dueDate).toISOString().split('T')[0] : ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateFee = async () => {
+    try {
+      await feeAPI.update(editingFee._id, editFee);
+      toast.success('Fee updated successfully');
+      setShowEditModal(false);
+      setEditingFee(null);
+      fetchFees();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update fee');
+    }
+  };
+
   const handleDeleteFee = async (feeId) => {
     if (!window.confirm('Are you sure you want to delete this fee?')) return;
     try {
@@ -80,8 +112,8 @@ const FeesManagement = () => {
   };
 
   const filteredFees = fees.filter(fee => {
-    const matchesSearch = (fee.user?.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (fee.user?.studentId?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = (fee.userId?.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (fee.userId?.studentId?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (fee.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || fee.status === statusFilter;
     const matchesType = typeFilter === 'all' || fee.feeType === typeFilter;
@@ -173,9 +205,10 @@ const FeesManagement = () => {
           className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="paid">Paid</option>
-          <option value="overdue">Overdue</option>
+            <option value="pending">Pending</option>
+            <option value="partial">Partial</option>
+            <option value="paid">Paid</option>
+            <option value="overdue">Overdue</option>
         </select>
         <select
           value={typeFilter}
@@ -215,8 +248,8 @@ const FeesManagement = () => {
             {filteredFees.map((fee) => (
               <tr key={fee._id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
-                  <div className="font-semibold">{fee.user?.name || 'Unknown'}</div>
-                  <div className="text-xs text-gray-500">{fee.user?.studentId || fee.user?.email}</div>
+                  <div className="font-semibold">{fee.userId?.name || 'Unknown'}</div>
+                  <div className="text-xs text-gray-500">{fee.userId?.studentId || fee.userId?.email}</div>
                 </td>
                 <td className="px-6 py-4">
                   <div>{fee.feeType}</div>
@@ -234,6 +267,7 @@ const FeesManagement = () => {
                 </td>
                 <td className="px-6 py-4 flex gap-2">
                   <button
+                    onClick={() => handleEditFee(fee)}
                     className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
                     title="Edit Fee"
                   >
@@ -277,7 +311,7 @@ const FeesManagement = () => {
           <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">Create New Fee</h2>
             <div className="mb-4">
-              <label className="block mb-1 font-medium">Student ID</label>
+              <label className="block mb-1 font-medium">Student ID or Email</label>
               <input
                 type="text"
                 value={newFee.userId}
@@ -341,6 +375,75 @@ const FeesManagement = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
               >
                 Create Fee
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Fee Modal */}
+      {showEditModal && editingFee && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Edit Fee</h2>
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Fee Type</label>
+              <select
+                value={editFee.feeType}
+                onChange={e => setEditFee({ ...editFee, feeType: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="tuition">Tuition</option>
+                <option value="hostel">Hostel</option>
+                <option value="library">Library</option>
+                <option value="examination">Examination</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Amount</label>
+              <input
+                type="number"
+                value={editFee.amount}
+                onChange={e => setEditFee({ ...editFee, amount: Number(e.target.value) })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                required
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Description</label>
+              <input
+                type="text"
+                value={editFee.description}
+                onChange={e => setEditFee({ ...editFee, description: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Due Date</label>
+              <input
+                type="date"
+                value={editFee.dueDate}
+                onChange={e => setEditFee({ ...editFee, dueDate: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                required
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingFee(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateFee}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+              >
+                Update Fee
               </button>
             </div>
           </div>

@@ -4,7 +4,7 @@ const QRCode = require('qrcode');
 /**
  * Generate a unique QR code string
  */
-export const generateQRCode = async (data): Promise => {
+const generateQRCode = async (data) => {
   try {
     const qrCodeDataURL = await QRCode.toDataURL(data);
     return qrCodeDataURL;
@@ -16,29 +16,29 @@ export const generateQRCode = async (data): Promise => {
 /**
  * Generate a SHA256 hash
  */
-export const generateHash = (data) => {
+const generateHash = (data) => {
   return crypto.createHash('sha256').update(data).digest('hex');
 };
 
 /**
  * Generate a unique identifier
  */
-export const generateUniqueId = () => {
+const generateUniqueId = () => {
   return crypto.randomBytes(16).toString('hex');
 };
 
 /**
  * Calculate pagination metadata
  */
-export const calculatePagination = (page, limit, total) => {
+const calculatePagination = (page, limit, total) => {
   const totalPages = Math.ceil(total / limit);
   const hasNextPage = page < totalPages;
   const hasPrevPage = page > 1;
 
   return {
-    currentPage,
+    currentPage: page,
     totalPages,
-    totalItems,
+    totalItems: total,
     hasNextPage,
     hasPrevPage,
   };
@@ -47,7 +47,7 @@ export const calculatePagination = (page, limit, total) => {
 /**
  * Validate email format
  */
-export const isValidEmail = (email) => {
+const isValidEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
@@ -55,7 +55,7 @@ export const isValidEmail = (email) => {
 /**
  * Generate random string
  */
-export const generateRandomString = (length) => {
+const generateRandomString = (length) => {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
   for (let i = 0; i < length; i++) {
@@ -67,7 +67,7 @@ export const generateRandomString = (length) => {
 /**
  * Format currency
  */
-export const formatCurrency = (amount, currency = 'USD') => {
+const formatCurrency = (amount, currency = 'USD') => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
@@ -77,31 +77,44 @@ export const formatCurrency = (amount, currency = 'USD') => {
 /**
  * Calculate age from date of birth
  */
-export const calculateAge = (dateOfBirth) => {
+const calculateAge = (dateOfBirth) => {
   const today = new Date();
   const birthDate = new Date(dateOfBirth);
   let age = today.getFullYear() - birthDate.getFullYear();
   const monthDiff = today.getMonth() - birthDate.getMonth();
-  
+
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
     age--;
   }
-  
+
   return age;
 };
 
 /**
  * Check if date is overdue
  */
-export const isOverdue = (dueDate) => {
+const isOverdue = (dueDate) => {
   return new Date() > new Date(dueDate);
 };
 
 /**
  * Generate student ID
  */
-export const generateStudentId = (year, department) => {
+const generateStudentId = (year, department) => {
   const deptCode = department.substring(0, 3).toUpperCase();
   const randomNum = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
   return `${year}${deptCode}${randomNum}`;
+};
+
+module.exports = {
+  generateQRCode,
+  generateHash,
+  generateUniqueId,
+  calculatePagination,
+  isValidEmail,
+  generateRandomString,
+  formatCurrency,
+  calculateAge,
+  isOverdue,
+  generateStudentId,
 };

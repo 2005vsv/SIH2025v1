@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion';
-import { BarChart, BookOpen, DollarSign, Shield, Users } from 'lucide-react';
+import { BarChart, Bell, BookOpen, DollarSign, Shield, Users } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import AdminChangePassword from './admin/AdminChangePassword';
 import AdminRegister from './admin/AdminRegister';
+import FeeNotifications from './admin/FeeNotifications';
 
 const AdminPanel = () => {
   const { user } = useAuth();
@@ -38,6 +39,14 @@ const AdminPanel = () => {
       description: 'Monitor and manage student fees',
       color: 'from-purple-500 to-purple-600',
       count: '₹12.5M',
+    },
+    {
+      id: 'notifications',
+      icon: <Bell className="w-8 h-8" />,
+      title: 'Fee Notifications',
+      description: 'Send targeted fee notifications to students',
+      color: 'from-red-500 to-red-600',
+      count: '98%',
     },
     {
       id: 'analytics',
@@ -185,6 +194,7 @@ const AdminPanel = () => {
               </div>
             </div>
           )}
+          {activeTab === 'notifications' && <FeeNotifications />}
           {activeTab === 'analytics' && (
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">System Analytics</h3>

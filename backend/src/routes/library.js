@@ -10,6 +10,16 @@ const {
     getLibraryStats,
     returnBook,
     updateBook,
+    // Digital library features
+    startReading,
+    updateReadingProgress,
+    addBookmark,
+    removeBookmark,
+    getReadingProgress,
+    getReadingHistory,
+    rateBook,
+    getRecommendations,
+    getReadingStats,
 } = require('../controllers/libraryController');
 const { auth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
@@ -50,5 +60,35 @@ router.post('/return', auth, returnBook);
 
 // Get borrow history
 router.get('/history', auth, getBorrowHistory);
+router.get('/borrow-history', auth, getBorrowHistory);
+
+// Digital Library Routes
+
+// Start reading a digital book
+router.post('/books/:bookId/start-reading', auth, startReading);
+
+// Update reading progress
+router.put('/books/:bookId/progress', auth, updateReadingProgress);
+
+// Get reading progress for a book
+router.get('/books/:bookId/progress', auth, getReadingProgress);
+
+// Add bookmark
+router.post('/books/:bookId/bookmarks', auth, addBookmark);
+
+// Remove bookmark
+router.delete('/books/:bookId/bookmarks', auth, removeBookmark);
+
+// Rate and review a book
+router.post('/books/:bookId/rate', auth, rateBook);
+
+// Get reading history
+router.get('/reading-history', auth, getReadingHistory);
+
+// Get reading statistics
+router.get('/reading-stats', auth, getReadingStats);
+
+// Get book recommendations
+router.get('/recommendations', auth, getRecommendations);
 
 module.exports = router;

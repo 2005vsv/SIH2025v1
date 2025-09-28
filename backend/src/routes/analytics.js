@@ -6,6 +6,8 @@ const {
     getFeeAnalytics,
     getLibraryAnalytics,
     getUserAnalytics,
+    getRealtimeAnalytics,
+    getPredictiveAnalytics,
 } = require('../controllers/analyticsController');
 const { auth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
@@ -19,6 +21,8 @@ router.get('/fees', auth, requireRole('admin'), getFeeAnalytics);
 router.get('/library', auth, requireRole('admin'), getLibraryAnalytics);
 router.get('/academics', auth, requireRole('admin'), getAcademicAnalytics);
 router.post('/report', auth, requireRole('admin'), getCustomReport);
+router.get('/realtime', auth, requireRole('admin'), getRealtimeAnalytics);
+router.get('/predictive', auth, requireRole('admin'), getPredictiveAnalytics);
 
 // Student route (risk score)
 router.get('/score', auth, (req, res) => {

@@ -40,7 +40,7 @@ const userValidation = {
     role: Joi.string().valid('student', 'admin', 'faculty').default('student'),
     studentId: Joi.string().trim(),
     profile: Joi.object({
-      phone: Joi.string().pattern(/^[+]?[\d\s-()]+$/).trim(),
+      phone: Joi.string().pattern(/^[+]?[\d\s-()]*$/).trim().allow(''),
       address: Joi.string().max(500).trim(),
       dateOfBirth: Joi.date().max('now'),
       department: Joi.string().max(100).trim(),
@@ -68,7 +68,7 @@ const userValidation = {
     role: Joi.string().valid('student', 'admin', 'faculty'),
     isActive: Joi.boolean(),
     department: Joi.string().trim(),
-    semester: Joi.number().integer().min(1).max(8),
+    semester: Joi.number().integer().min(1).max(12),
   }),
 
   bulkImport: Joi.object({

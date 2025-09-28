@@ -4,15 +4,20 @@ const HostelServiceRequest = require('../models/HostelServiceRequest');
 
 // Get all hostel rooms
 exports.getHostelRooms = async (req, res) => {
+  console.log('getHostelRooms called with query:', req.query, 'user:', req.user);
   try {
     const { page = 1, limit = 10, building, floor, availability, type } = req.query;
 
     const query = {};
 
-    if (building) query.building = building;
+    if (building) query.block = building;
     if (floor) query.floor = parseInt(floor);
     if (type) query.type = type;
-    if (availability === 'available') query.$expr = { $lt: ['$currentOccupancy', '$capacity'] };
+    if (availability === 'available') {
+      query.isActive = true;
+      query.maintenanceStatus = 'good';
+      query.$expr = { $lt: ['$currentOccupancy', '$capacity'] };
+    }
     if (availability === 'full') query.$expr = { $gte: ['$currentOccupancy', '$capacity'] };
 
     const options = {
@@ -27,6 +32,7 @@ exports.getHostelRooms = async (req, res) => {
       .skip((options.page - 1) * options.limit);
 
     const total = await HostelRoom.countDocuments(query);
+    console.log('Found rooms:', rooms.length, 'total:', total, 'query:', query);
 
     res.json({
       success: true,
@@ -79,9 +85,11 @@ exports.getRoomById = async (req, res) => {
 
 // Create room (Admin only)
 exports.createRoom = async (req, res) => {
+  console.log('createRoom called with body:', req.body, 'user:', req.user);
   try {
     const room = new HostelRoom(req.body);
     await room.save();
+    console.log('Room created successfully:', room);
 
     res.status(201).json({
       success: true,
@@ -89,6 +97,7 @@ exports.createRoom = async (req, res) => {
       data: { room },
     });
   } catch (error) {
+    console.log('Error creating room:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create room',
@@ -216,14 +225,15 @@ exports.getAllocations = async (req, res) => {
 
 // Request room allocation
 exports.requestAllocation = async (req, res) => {
+  console.log('requestAllocation called with body:', req.body, 'user:', req.user);
   try {
     const { roomId, academicYear, preferences } = req.body;
     const userId = req.user && req.user.id;
 
-    // Check if user already has an active allocation
+    // Check if user already has an active allocation or pending request
     const existingAllocation = await HostelAllocation.findOne({
       userId,
-      status: { $in: ['allocated', 'checked_in'] },
+      status: { $in: ['pending', 'allocated', 'checked_in'] },
     });
 
     if (existingAllocation) {
@@ -258,25 +268,23 @@ exports.requestAllocation = async (req, res) => {
       userId,
       roomId,
       allocatedDate: new Date(),
-      status: 'allocated',
+      status: 'pending',
       notes: preferences ? JSON.stringify(preferences) : undefined,
     });
 
     await allocation.save();
 
-    // Update room occupancy
-    if (roomId) {
-      const room = await HostelRoom.findById(roomId);
-      if (room) {
-        room.currentOccupancy += 1;
-        await room.save();
-      }
-    }
+    // Note: Room occupancy is not updated here - it will be updated when admin approves the request
 
-    await allocation.populate([
-      { path: 'roomId', select: 'roomNumber building floor type' },
-      { path: 'userId', select: 'name email studentId' }
-    ]);
+    try {
+      await allocation.populate([
+        { path: 'roomId', select: 'roomNumber building floor type' },
+        { path: 'userId', select: 'name email studentId' }
+      ]);
+    } catch (populateError) {
+      console.error('Error populating allocation:', populateError);
+      // Continue without population if it fails
+    }
 
     res.status(201).json({
       success: true,
@@ -284,6 +292,7 @@ exports.requestAllocation = async (req, res) => {
       data: { allocation },
     });
   } catch (error) {
+    console.error('Error in requestAllocation:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to submit allocation request',
@@ -292,16 +301,18 @@ exports.requestAllocation = async (req, res) => {
   }
 };
 
-// Update allocation status (Admin only)
+// Update allocation status (Admin can update any, Students can update their own)
 exports.updateAllocationStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, checkInDate, checkOutDate, notes } = req.body;
+    const { status, checkInDate, checkOutDate, notes, roomId } = req.body;
+    const isAdmin = req.user && req.user.role === 'admin';
+    const userId = req.user && req.user.id;
 
-    if (!['allocated', 'checked_in', 'checked_out', 'cancelled'].includes(status)) {
+    if (!['pending', 'allocated', 'checked_in', 'checked_out', 'cancelled'].includes(status)) {
       res.status(400).json({
         success: false,
-        message: 'Invalid status. Must be allocated, checked_in, checked_out, or cancelled',
+        message: 'Invalid status. Must be pending, allocated, checked_in, checked_out, or cancelled',
       });
       return;
     }
@@ -316,17 +327,108 @@ exports.updateAllocationStatus = async (req, res) => {
       return;
     }
 
+    // Check permissions: Admin can update any allocation, students can only update their own
+    if (!isAdmin && allocation.userId.toString() !== userId) {
+      res.status(403).json({
+        success: false,
+        message: 'You can only update your own allocations',
+      });
+      return;
+    }
+
+    // Students can only perform check-in, check-out, or cancel operations on their allocated rooms
+    if (!isAdmin) {
+      const allowedStudentStatuses = ['checked_in', 'checked_out', 'cancelled'];
+      if (!allowedStudentStatuses.includes(status)) {
+        res.status(403).json({
+          success: false,
+          message: 'Students can only check-in, check-out, or cancel their allocations',
+        });
+        return;
+      }
+
+      // Students can only cancel if status is 'allocated'
+      if (status === 'cancelled' && allocation.status !== 'allocated') {
+        res.status(400).json({
+          success: false,
+          message: 'You can only cancel allocated bookings',
+        });
+        return;
+      }
+
+      // Students can only check-in if status is 'allocated'
+      if (status === 'checked_in' && allocation.status !== 'allocated') {
+        res.status(400).json({
+          success: false,
+          message: 'You can only check-in to allocated rooms',
+        });
+        return;
+      }
+
+      // Students can only check-out if status is 'checked_in'
+      if (status === 'checked_out' && allocation.status !== 'checked_in') {
+        res.status(400).json({
+          success: false,
+          message: 'You can only check-out from checked-in rooms',
+        });
+        return;
+      }
+    }
+
+    // Store old room ID for occupancy management
+    const oldRoomId = allocation.roomId;
+
+    // Update allocation fields
     allocation.status = status;
     if (checkInDate) allocation.checkInDate = new Date(checkInDate);
     if (checkOutDate) allocation.checkOutDate = new Date(checkOutDate);
     if (notes) allocation.notes = notes;
+    if (roomId && isAdmin) allocation.roomId = roomId; // Only admin can change room
 
     await allocation.save();
 
-    await allocation.populate([
-      { path: 'roomId', select: 'roomNumber building floor type' },
-      { path: 'userId', select: 'name email studentId' }
-    ]);
+    // Handle room occupancy changes
+    try {
+      // If room changed, update occupancy for both old and new rooms
+      if (roomId && oldRoomId && oldRoomId.toString() !== roomId.toString()) {
+        // Decrease occupancy of old room
+        if (oldRoomId) {
+          const oldRoom = await HostelRoom.findById(oldRoomId);
+          if (oldRoom && oldRoom.currentOccupancy > 0) {
+            oldRoom.currentOccupancy -= 1;
+            await oldRoom.save();
+          }
+        }
+
+        // Increase occupancy of new room
+        const newRoom = await HostelRoom.findById(roomId);
+        if (newRoom && newRoom.currentOccupancy < newRoom.capacity) {
+          newRoom.currentOccupancy += 1;
+          await newRoom.save();
+        }
+      }
+      // If approving a pending request (changing to allocated), update room occupancy
+      else if (allocation.status === 'allocated' && allocation.roomId && !oldRoomId) {
+        const room = await HostelRoom.findById(allocation.roomId);
+        if (room && room.currentOccupancy < room.capacity) {
+          room.currentOccupancy += 1;
+          await room.save();
+        }
+      }
+    } catch (roomError) {
+      console.error('Error updating room occupancy:', roomError);
+      // Don't fail the allocation update if room update fails
+    }
+
+    try {
+      await allocation.populate([
+        { path: 'roomId', select: 'roomNumber building floor type' },
+        { path: 'userId', select: 'name email studentId' }
+      ]);
+    } catch (populateError) {
+      console.error('Error populating allocation:', populateError);
+      // Continue without population if it fails
+    }
 
     res.json({
       success: true,
@@ -334,9 +436,53 @@ exports.updateAllocationStatus = async (req, res) => {
       data: { allocation },
     });
   } catch (error) {
+    console.error('Error in updateAllocationStatus:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update allocation status',
+      error: process.env.NODE_ENV === 'development' ? error : undefined,
+    });
+  }
+};
+
+// Delete allocation (Admin only)
+exports.deleteAllocation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const allocation = await HostelAllocation.findById(id);
+
+    if (!allocation) {
+      res.status(404).json({
+        success: false,
+        message: 'Allocation not found',
+      });
+      return;
+    }
+
+    // If the allocation was active (allocated or checked_in), reduce room occupancy
+    if (allocation.status === 'allocated' || allocation.status === 'checked_in') {
+      if (allocation.roomId) {
+        const room = await HostelRoom.findById(allocation.roomId);
+        if (room && room.currentOccupancy > 0) {
+          room.currentOccupancy -= 1;
+          await room.save();
+        }
+      }
+    }
+
+    // Delete the allocation
+    await HostelAllocation.findByIdAndDelete(id);
+
+    res.json({
+      success: true,
+      message: 'Allocation deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error in deleteAllocation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete allocation',
       error: process.env.NODE_ENV === 'development' ? error : undefined,
     });
   }
@@ -466,6 +612,37 @@ exports.updateServiceRequest = async (req, res) => {
   }
 };
 
+// Delete service request (Admin only)
+exports.deleteServiceRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const serviceRequest = await HostelServiceRequest.findById(id);
+
+    if (!serviceRequest) {
+      res.status(404).json({
+        success: false,
+        message: 'Service request not found',
+      });
+      return;
+    }
+
+    // Delete the service request
+    await HostelServiceRequest.findByIdAndDelete(id);
+
+    res.json({
+      success: true,
+      message: 'Service request deleted successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete service request',
+      error: process.env.NODE_ENV === 'development' ? error : undefined,
+    });
+  }
+};
+
 // Get hostel statistics
 exports.getHostelStats = async (req, res) => {
   try {
@@ -493,7 +670,7 @@ exports.getHostelStats = async (req, res) => {
         totalCapacity: totalCapacity[0]?.total || 0,
         currentOccupancy: currentOccupancy[0]?.total || 0,
         occupancyRate: totalCapacity[0]?.total ?
-          ((currentOccupancy[0]?.total || 0) / totalCapacity[0].total * 100).toFixed(2) : '0',
+          parseFloat(((currentOccupancy[0]?.total || 0) / totalCapacity[0].total * 100).toFixed(2)) : 0,
         pendingAllocations,
         approvedAllocations,
         pendingServiceRequests,
@@ -511,13 +688,15 @@ exports.getHostelStats = async (req, res) => {
 
 // Get my allocated room (Student)
 exports.getMyRoom = async (req, res) => {
+  console.log('getMyRoom called for user:', req.user);
   try {
     const userId = req.user && req.user.id;
 
     const allocation = await HostelAllocation.findOne({
       userId,
-      status: 'approved'
+      status: { $in: ['allocated', 'checked_in'] }
     }).populate('roomId');
+    console.log('Found allocation:', allocation);
 
     if (!allocation) {
       res.status(404).json({
@@ -542,17 +721,23 @@ exports.getMyRoom = async (req, res) => {
 
 // Create room change request
 exports.createChangeRequest = async (req, res) => {
+  console.log('createChangeRequest called with body:', req.body, 'user:', req.user);
   try {
     const userId = req.user && req.user.id;
     const { reason, preferredRoomId } = req.body;
 
+    console.log('Processing room change request for user:', userId);
+
     // Check if user has an active allocation
     const currentAllocation = await HostelAllocation.findOne({
       userId,
-      status: 'approved'
+      status: { $in: ['allocated', 'checked_in'] }
     });
 
+    console.log('Found current allocation:', currentAllocation);
+
     if (!currentAllocation) {
+      console.log('No active allocation found for user:', userId);
       res.status(400).json({
         success: false,
         message: 'No active room allocation found'
@@ -560,14 +745,17 @@ exports.createChangeRequest = async (req, res) => {
       return;
     }
 
-    // Check if there's already a pending change request
+    // Check if there's already a submitted change request
     const existingRequest = await HostelServiceRequest.findOne({
       userId,
       type: 'room_change',
-      status: 'pending'
+      status: { $in: ['submitted', 'acknowledged', 'in_progress'] }
     });
 
+    console.log('Existing pending request:', existingRequest);
+
     if (existingRequest) {
+      console.log('User already has pending room change request');
       res.status(400).json({
         success: false,
         message: 'You already have a pending room change request'
@@ -575,22 +763,38 @@ exports.createChangeRequest = async (req, res) => {
       return;
     }
 
-    const changeRequest = new HostelServiceRequest({
+    console.log('Creating room change request with data:', {
       userId,
       type: 'room_change',
       description: reason,
       priority: 'medium',
-      status: 'pending',
+      status: 'submitted',
+      requestedRoom: preferredRoomId,
+      currentRoom: currentAllocation.roomId
+    });
+
+    const changeRequest = new HostelServiceRequest({
+      userId,
+      roomId: currentAllocation.roomId, // Required field - use current room
+      type: 'room_change',
+      title: 'Room Change Request', // Required field
+      description: reason,
+      priority: 'medium',
+      status: 'submitted',
       requestedRoom: preferredRoomId,
       currentRoom: currentAllocation.roomId
     });
 
     await changeRequest.save();
+    console.log('Room change request saved successfully');
+
     await changeRequest.populate([
       { path: 'userId', select: 'name email studentId' },
       { path: 'requestedRoom' },
       { path: 'currentRoom' }
     ]);
+
+    console.log('Room change request populated and ready to return');
 
     res.status(201).json({
       success: true,
@@ -598,9 +802,175 @@ exports.createChangeRequest = async (req, res) => {
       data: { changeRequest }
     });
   } catch (error) {
+    console.error('Error in createChangeRequest:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create room change request',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Admin direct room reassignment (Admin only)
+exports.reassignRoom = async (req, res) => {
+  console.log('reassignRoom called with body:', req.body, 'user:', req.user);
+  try {
+    const { allocationId, newRoomId, reason } = req.body;
+    const isAdmin = req.user && req.user.role === 'admin';
+
+    if (!isAdmin) {
+      res.status(403).json({
+        success: false,
+        message: 'Only admins can reassign rooms'
+      });
+      return;
+    }
+
+    // Find the allocation
+    const allocation = await HostelAllocation.findById(allocationId);
+
+    if (!allocation) {
+      res.status(404).json({
+        success: false,
+        message: 'Allocation not found'
+      });
+      return;
+    }
+
+    // Check if new room exists and has capacity
+    const newRoom = await HostelRoom.findById(newRoomId);
+    if (!newRoom) {
+      res.status(404).json({
+        success: false,
+        message: 'New room not found'
+      });
+      return;
+    }
+
+    if (newRoom.currentOccupancy >= newRoom.capacity) {
+      res.status(400).json({
+        success: false,
+        message: 'New room is at full capacity'
+      });
+      return;
+    }
+
+    const oldRoomId = allocation.roomId;
+    const oldRoom = oldRoomId ? await HostelRoom.findById(oldRoomId) : null;
+
+    // Check if user already has an allocation for the new room
+    const existingAllocationForNewRoom = await HostelAllocation.findOne({
+      userId: allocation.userId,
+      roomId: newRoomId,
+      _id: { $ne: allocationId } // Exclude the current allocation
+    });
+
+    if (existingAllocationForNewRoom) {
+      // If there's an existing allocation for the new room, we need to handle it
+      if (existingAllocationForNewRoom.status === 'pending') {
+        // Cancel the pending allocation
+        existingAllocationForNewRoom.status = 'cancelled';
+        existingAllocationForNewRoom.notes = 'Cancelled due to room reassignment';
+        await existingAllocationForNewRoom.save();
+      } else if (existingAllocationForNewRoom.status === 'allocated' || existingAllocationForNewRoom.status === 'checked_in') {
+        // This shouldn't happen, but if it does, cancel the old one
+        existingAllocationForNewRoom.status = 'cancelled';
+        existingAllocationForNewRoom.notes = 'Cancelled due to room reassignment';
+        await existingAllocationForNewRoom.save();
+
+        // Decrease occupancy of the room that had the duplicate allocation
+        if (newRoom.currentOccupancy > 0) {
+          newRoom.currentOccupancy -= 1;
+          await newRoom.save();
+        }
+      }
+    }
+
+    // Update allocation with new room
+    allocation.roomId = newRoomId;
+    allocation.notes = reason ? `Room reassigned: ${reason}` : 'Room reassigned by admin';
+
+    await allocation.save();
+
+    // Update room occupancy
+    try {
+      // Decrease occupancy of old room
+      if (oldRoom && oldRoom.currentOccupancy > 0) {
+        oldRoom.currentOccupancy -= 1;
+        await oldRoom.save();
+      }
+
+      // Increase occupancy of new room
+      newRoom.currentOccupancy += 1;
+      await newRoom.save();
+    } catch (roomError) {
+      console.error('Error updating room occupancy:', roomError);
+      // Don't fail the allocation update if room update fails
+    }
+
+    // Populate allocation for response
+    try {
+      await allocation.populate([
+        { path: 'roomId', select: 'roomNumber building floor type' },
+        { path: 'userId', select: 'name email studentId' }
+      ]);
+    } catch (populateError) {
+      console.error('Error populating allocation:', populateError);
+    }
+
+    // Send notification to student
+    try {
+      const Notification = require('../models/Notification');
+      const notification = new Notification({
+        userId: allocation.userId,
+        title: 'Room Reassigned by Admin',
+        message: `Your room has been changed from Room ${oldRoom?.roomNumber || 'N/A'} to Room ${newRoom?.roomNumber || 'N/A'}.`,
+        type: 'info',
+        category: 'hostel',
+        priority: 'high',
+        actionUrl: '/student/hostel',
+        actionText: 'View Room',
+        data: {
+          oldRoomId: oldRoom?._id,
+          oldRoomNumber: oldRoom?.roomNumber,
+          newRoomId: newRoom?._id,
+          newRoomNumber: newRoom?.roomNumber,
+          reassignedAt: new Date()
+        }
+      });
+
+      const savedNotification = await notification.save();
+
+      // Send real-time notification via WebSocket
+      if (global.io) {
+        global.io.to(`user_${allocation.userId}`).emit('notification', {
+          id: savedNotification._id,
+          title: savedNotification.title,
+          message: savedNotification.message,
+          type: savedNotification.type,
+          category: savedNotification.category,
+          priority: savedNotification.priority,
+          actionUrl: savedNotification.actionUrl,
+          actionText: savedNotification.actionText,
+          data: savedNotification.data,
+          createdAt: savedNotification.createdAt,
+        });
+      }
+    } catch (notifyError) {
+      console.error('Error sending notification:', notifyError);
+      // Don't fail the operation if notification fails
+    }
+
+    res.json({
+      success: true,
+      message: 'Room reassigned successfully',
+      data: { allocation }
+    });
+  } catch (error) {
+    console.error('Error in reassignRoom:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reassign room',
       error: process.env.NODE_ENV === 'development' ? error : undefined
     });
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings,
   Database,
@@ -8,6 +8,7 @@ import {
   Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../../services/api';
 
 // Remove the TypeScript interface for .jsx files
 
@@ -58,16 +59,43 @@ const SystemConfig = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [loadingConfig, setLoadingConfig] = useState(true);
   const [activeTab, setActiveTab] = useState('general');
+
+  // Load configuration on component mount
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await api.get('/system/config');
+        if (response.data.success && response.data.data.settings) {
+          setConfig(response.data.data.settings);
+        }
+      } catch (error) {
+        console.error('Failed to load system configuration:', error);
+        toast.error('Failed to load configuration');
+      } finally {
+        setLoadingConfig(false);
+      }
+    };
+
+    loadConfig();
+  }, []);
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      // API call to save configuration
-      // await systemAPI.updateConfig(config);
-      toast.success('Configuration saved successfully');
+      const response = await api.put('/system/config', config);
+      if (response.data.success) {
+        toast.success('Configuration saved successfully');
+        // Check if notification settings were enabled and show appropriate message
+        const { notifications } = config;
+        if (notifications.emailEnabled || notifications.smsEnabled || notifications.pushEnabled) {
+          toast.success('Test notifications sent to all users for enabled channels');
+        }
+      }
     } catch (error) {
-      toast.error('Failed to save configuration');
+      console.error('Failed to save configuration:', error);
+      toast.error(error.response?.data?.message || 'Failed to save configuration');
     } finally {
       setLoading(false);
     }
@@ -111,6 +139,19 @@ const SystemConfig = () => {
     { id: 'fees', label: 'Fees', icon: Database },
     { id: 'library', label: 'Library', icon: Globe }
   ];
+
+  if (loadingConfig) {
+    return (
+      <div className="max-w-3xl mx-auto p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading configuration...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto p-6">

@@ -17,7 +17,7 @@ const HostelServiceRequestSchema = new Schema({
   type: {
     type: String,
     required: [true, 'Service type is required'],
-    enum: ['maintenance', 'cleaning', 'pest_control', 'electrical', 'plumbing', 'furniture', 'other'],
+    enum: ['maintenance', 'cleaning', 'pest_control', 'electrical', 'plumbing', 'furniture', 'room_change', 'other'],
     index: true,
   },
   title: {
@@ -51,8 +51,9 @@ const HostelServiceRequestSchema = new Schema({
     trim: true,
   }],
   assignedTo: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
+    type: String,
+    trim: true,
+    maxlength: [100, 'Assigned to name cannot exceed 100 characters'],
     index: true,
   },
   estimatedCost: {
@@ -91,6 +92,17 @@ const HostelServiceRequestSchema = new Schema({
       default: Date.now,
     },
   },
+  // Room change specific fields
+  requestedRoom: {
+    type: Schema.Types.ObjectId,
+    ref: 'HostelRoom',
+    index: true,
+  },
+  currentRoom: {
+    type: Schema.Types.ObjectId,
+    ref: 'HostelRoom',
+    index: true,
+  },
   adminNotes: {
     type: String,
     trim: true,
@@ -115,7 +127,7 @@ HostelServiceRequestSchema.pre('save', function (next) {
   }
 
   // Validate that feedback can only be given for resolved requests
-  if (this.feedback && this.status !== 'resolved') {
+  if ((this.feedback.rating || this.feedback.comment) && this.status !== 'resolved') {
     return next(new Error('Feedback can only be given for resolved requests'));
   }
 

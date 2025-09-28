@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types';
-import { createContext, useContext, useReducer } from 'react';
+import { createContext, useContext, useReducer, useEffect } from 'react';
+import socketService from '../services/socket';
 
 const initialState = {
   isAuthenticated: !!localStorage.getItem('accessToken'),
@@ -50,11 +51,30 @@ const AuthContext = createContext(undefined);
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
+  // Connect to socket when user is authenticated
+  useEffect(() => {
+    if (state.isAuthenticated && state.user) {
+      const token = localStorage.getItem('accessToken');
+      if (token) {
+        socketService.connect(state.user.id, token);
+      }
+    } else {
+      socketService.disconnect();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      socketService.disconnect();
+    };
+  }, [state.isAuthenticated, state.user]);
+
   const login = (user, accessToken, refreshToken) => {
     dispatch({ type: 'LOGIN', payload: { user, accessToken, refreshToken } });
+    // Socket connection will be handled by useEffect
   };
 
   const logout = () => {
+    socketService.disconnect();
     dispatch({ type: 'LOGOUT' });
   };
 
@@ -72,6 +92,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateUser,
     setLoading,
+    socketService,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

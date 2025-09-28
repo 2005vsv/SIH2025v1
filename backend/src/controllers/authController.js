@@ -33,25 +33,39 @@ const refreshSchema = Joi.object({
 
 // Helper function to generate tokens
 const generateTokens = (user) => {
+  if (!user || !user._id) {
+    throw new Error('Invalid user data for token generation');
+  }
+
   const payload = {
     id: user._id,
     email: user.email,
     role: user.role,
     studentId: user.studentId,
+    name: user.name
   };
 
-  const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
-  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret-key';
+  const jwtSecret = process.env.JWT_SECRET;
+  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
 
-  const accessToken = jwt.sign(payload, jwtSecret, { 
-    expiresIn: '1h'
-  });
-  
-  const refreshToken = jwt.sign(payload, jwtRefreshSecret, { 
-    expiresIn: '7d'
-  });
+  if (!jwtSecret || !jwtRefreshSecret) {
+    throw new Error('JWT secrets not configured');
+  }
 
-  return { accessToken, refreshToken };
+  try {
+    const accessToken = jwt.sign(payload, jwtSecret, { 
+      expiresIn: '24h'
+    });
+    
+    const refreshToken = jwt.sign(payload, jwtRefreshSecret, { 
+      expiresIn: '7d'
+    });
+
+    return { accessToken, refreshToken };
+  } catch (error) {
+    logger.error('Token generation error:', error);
+    throw new Error('Failed to generate authentication tokens');
+  }
 };
 
 /**
@@ -61,6 +75,7 @@ const generateTokens = (user) => {
  */
 exports.register = async (req, res, next) => {
   try {
+    console.log('DEBUG REGISTER - Request body:', req.body);
     // Validate request body
     const { error, value } = registerSchema.validate(req.body);
     if (error) {
@@ -144,74 +159,90 @@ exports.register = async (req, res, next) => {
  */
 exports.login = async (req, res, next) => {
   try {
+    console.log('DEBUG LOGIN - Request body:', req.body);
     // Validate request body
     const { error, value } = loginSchema.validate(req.body);
     if (error) {
-      const response = {
+      return res.status(400).json({
         success: false,
         message: error.details[0].message,
-      };
-      res.status(400).json(response);
-      return;
+      });
     }
 
     const { email, password } = value;
 
-    // Check if user exists and include password
-    const user = await User.findOne({ email }).select('+password');
+    // Find user and include password and login attempt fields
+    const user = await User.findOne({ email }).select('+password +loginAttempts +lockUntil +isActive');
     if (!user) {
-      const response = {
+      return res.status(401).json({
         success: false,
         message: 'Invalid credentials',
-      };
-      res.status(401).json(response);
-      return;
+      });
     }
+
+    // Debug: Log user status
+    console.log('User found:', {
+      email: user.email,
+      isActive: user.isActive,
+      role: user.role,
+      hasIsActive: user.hasOwnProperty('isActive'),
+      userKeys: Object.keys(user.toObject())
+    });
 
     // Check if user is active
     if (!user.isActive) {
-      const response = {
+      return res.status(401).json({
         success: false,
         message: 'Account is deactivated',
-      };
-      res.status(401).json(response);
-      return;
+      });
     }
 
-    // Check password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      const response = {
-        success: false,
-        message: 'Invalid credentials',
-      };
-      res.status(401).json(response);
-      return;
-    }
+    try {
+      // This will check if account is locked and handle login attempts
+      const isPasswordValid = await user.comparePassword(password);
 
-    // Generate tokens
-    const { accessToken, refreshToken } = generateTokens(user);
+      if (!isPasswordValid) {
+        // Get fresh user data to check updated login attempts
+        const updatedUser = await User.findOne({ email }).select('loginAttempts lockUntil');
+        const remainingAttempts = 5 - (updatedUser.loginAttempts || 0);
+        return res.status(401).json({
+          success: false,
+          message: updatedUser.lockUntil && updatedUser.lockUntil > Date.now() ?
+            'Account is temporarily locked. Please try again later.' :
+            `Invalid credentials. ${remainingAttempts} login attempts remaining.`,
+        });
+      }
 
-    logger.info(`User logged in: ${email}`);
+      // Generate tokens
+      const { accessToken, refreshToken } = generateTokens(user);
 
-    const response = {
-      success: true,
-      message: 'Login successful',
-      data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          studentId: user.studentId,
-          profile: user.profile,
+      logger.info(`User logged in: ${email}`);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        data: {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            studentId: user.studentId,
+            profile: user.profile,
+          },
+          accessToken,
+          refreshToken,
         },
-        accessToken,
-        refreshToken,
-      },
-    };
-
-    res.status(200).json(response);
+      });
+    } catch (error) {
+      if (error.message.includes('Account is temporarily locked')) {
+        return res.status(423).json({
+          success: false,
+          message: error.message,
+        });
+      }
+      throw error;
+    }
   } catch (error) {
     logger.error('Login error:', error);
     next(error);

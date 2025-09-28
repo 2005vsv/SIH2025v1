@@ -61,14 +61,74 @@ const BookSchema = new Schema({
     min: [1000, 'Published year must be valid'],
     max: [new Date().getFullYear(), 'Published year cannot be in the future'],
   },
+  // Digital library fields
+  isDigital: {
+    type: Boolean,
+    default: false,
+  },
+  digitalFile: {
+    url: {
+      type: String,
+      trim: true,
+    },
+    format: {
+      type: String,
+      enum: ['pdf', 'epub', 'mobi', 'txt'],
+    },
+    size: {
+      type: Number, // in bytes
+    },
+    pages: {
+      type: Number,
+    },
+  },
+  language: {
+    type: String,
+    default: 'English',
+    trim: true,
+  },
+  tags: [{
+    type: String,
+    trim: true,
+  }],
+  rating: {
+    average: {
+      type: Number,
+      min: 0,
+      max: 5,
+      default: 0,
+    },
+    count: {
+      type: Number,
+      default: 0,
+    },
+  },
+  coverImage: {
+    type: String,
+    trim: true,
+  },
+  publisher: {
+    type: String,
+    trim: true,
+  },
+  edition: {
+    type: String,
+    trim: true,
+  },
 }, {
   timestamps: true,
 });
 
 // Indexes
-BookSchema.index({ title: 'text', author: 'text' });
+BookSchema.index({ title: 'text', author: 'text', description: 'text', tags: 'text' });
 BookSchema.index({ category: 1 });
 BookSchema.index({ isbn: 1 });
 BookSchema.index({ qrCode: 1 });
+BookSchema.index({ isDigital: 1 });
+BookSchema.index({ language: 1 });
+BookSchema.index({ tags: 1 });
+BookSchema.index({ 'rating.average': -1 });
+BookSchema.index({ publishedYear: -1 });
+BookSchema.index({ publisher: 1 });
 
 module.exports = mongoose.model('Book', BookSchema);

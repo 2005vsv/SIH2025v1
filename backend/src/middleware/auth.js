@@ -4,37 +4,68 @@ const User = require('../models/User');
 
 // Auth middleware
 const auth = async (req, res, next) => {
-  // Debug: log all headers to help diagnose missing Authorization header
-  console.log('DEBUG AUTH HEADERS:', req.headers);
   try {
-    const authHeader = req.headers.authorization;
+    // Get token from header, cookie, or query parameter
+    const token = req.headers.authorization?.split(' ')[1] || 
+                  req.cookies?.token ||
+                  req.query?.token;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({
+    if (!token) {
+      logger.warn('Auth failed: No token provided');
+      return res.status(401).json({
         success: false,
-        message: 'No token provided, authorization denied',
+        message: 'Authentication required. Please log in.',
       });
-      return;
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-
-    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
     if (!process.env.JWT_SECRET) {
-      logger.warn('JWT_SECRET is not defined, using fallback secret');
-    }
-
-    const decoded = jwt.verify(token, jwtSecret);
-
-    // Verify user still exists
-    const user = await User.findById(decoded.id);
-    if (!user || !user.isActive) {
-      res.status(401).json({
+      logger.error('JWT_SECRET is not configured');
+      return res.status(500).json({
         success: false,
-        message: 'User no longer exists or is inactive',
+        message: 'Server configuration error',
       });
-      return;
     }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          message: 'Token has expired. Please log in again.',
+        });
+      }
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token. Please log in again.',
+      });
+    }
+
+    // Verify user exists and is active
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      logger.warn(`Auth failed: User not found - ID: ${decoded.id}`);
+      return res.status(401).json({
+        success: false,
+        message: 'User account not found',
+      });
+    }
+
+    if (!user.isActive) {
+      logger.warn(`Auth failed: Inactive user - ID: ${decoded.id}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Your account is currently inactive',
+      });
+    }
+
+    console.log('DEBUG AUTH - User authenticated:', {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      studentId: user.studentId,
+    });
 
     req.user = {
       id: user._id.toString(),

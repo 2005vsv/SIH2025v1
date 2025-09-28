@@ -534,3 +534,194 @@ exports.bulkUpdateJobStatus = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+// Get job recommendations for student
+exports.getJobRecommendations = async (req, res) => {
+  try {
+    const userId = req.user && req.user.id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Get user's applied jobs to exclude them
+    const appliedJobs = await Application.find({ userId }).select('jobId');
+    const appliedJobIds = appliedJobs.map(app => app.jobId);
+
+    // Build recommendation criteria based on user profile
+    const matchCriteria = {
+      isActive: true,
+      applicationDeadline: { $gte: new Date() },
+      _id: { $nin: appliedJobIds },
+    };
+
+    // Match by department
+    if (user.profile?.department) {
+      matchCriteria['eligibilityCriteria.departments'] = user.profile.department;
+    }
+
+    // Match by CGPA
+    if (user.profile?.cgpa) {
+      matchCriteria['eligibilityCriteria.cgpaMin'] = { $lte: user.profile.cgpa };
+    }
+
+    // Match by graduation year
+    if (user.profile?.admissionYear) {
+      const graduationYear = user.profile.admissionYear + 4; // Assuming 4-year course
+      matchCriteria['eligibilityCriteria.graduationYears'] = graduationYear;
+    }
+
+    const recommendations = await Job.find(matchCriteria)
+      .populate('companyId', 'name industry logo')
+      .sort({ 'salaryRange.max': -1, createdAt: -1 })
+      .limit(10);
+
+    res.json({
+      success: true,
+      data: { recommendations },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get job recommendations',
+      error: process.env.NODE_ENV === 'development' ? error : undefined,
+    });
+  }
+};
+
+// Schedule interview
+exports.scheduleInterview = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { interviewDate, interviewMode, interviewLink, notes } = req.body;
+
+    const application = await Application.findByIdAndUpdate(
+      applicationId,
+      {
+        status: 'interview_scheduled',
+        interviewDate: new Date(interviewDate),
+        interviewMode,
+        interviewLink,
+        feedback: notes,
+        reviewedAt: new Date(),
+        reviewedBy: req.user && req.user.id,
+      },
+      { new: true }
+    ).populate('userId', 'name email')
+     .populate('jobId', 'title company');
+
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    // Send notification to student
+    const notification = {
+      userId: application.userId._id,
+      title: 'Interview Scheduled',
+      message: `Your interview for ${application.jobId.title} at ${application.jobId.company} has been scheduled for ${new Date(interviewDate).toLocaleString()}.`,
+      type: 'interview',
+      data: {
+        applicationId: application._id,
+        jobId: application.jobId._id,
+        interviewDate,
+        interviewMode,
+        interviewLink,
+      },
+    };
+
+    // Emit notification via WebSocket (if available)
+    if (global.io) {
+      global.io.to(application.userId._id.toString()).emit('notification', notification);
+    }
+
+    res.json({
+      success: true,
+      message: 'Interview scheduled successfully',
+      data: { application },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to schedule interview',
+      error: process.env.NODE_ENV === 'development' ? error : undefined,
+    });
+  }
+};
+
+// Get placement dashboard data
+exports.getPlacementDashboard = async (req, res) => {
+  try {
+    const isAdmin = req.user && req.user.role === 'admin';
+
+    if (isAdmin) {
+      // Admin dashboard
+      const totalJobs = await Job.countDocuments();
+      const activeJobs = await Job.countDocuments({ isActive: true });
+      const totalApplications = await Application.countDocuments();
+      const pendingApplications = await Application.countDocuments({ status: 'applied' });
+      const selectedCandidates = await Application.countDocuments({ status: 'selected' });
+
+      const recentApplications = await Application.find()
+        .populate('userId', 'name email studentId')
+        .populate('jobId', 'title company')
+        .sort('-appliedAt')
+        .limit(5);
+
+      res.json({
+        success: true,
+        data: {
+          stats: {
+            totalJobs,
+            activeJobs,
+            totalApplications,
+            pendingApplications,
+            selectedCandidates,
+            placementRate: totalApplications > 0 ? ((selectedCandidates / totalApplications) * 100).toFixed(2) : 0,
+          },
+          recentApplications,
+        },
+      });
+    } else {
+      // Student dashboard
+      const userId = req.user && req.user.id;
+      const myApplications = await Application.countDocuments({ userId });
+      const pendingApplications = await Application.countDocuments({ userId, status: 'applied' });
+      const interviewScheduled = await Application.countDocuments({ userId, status: 'interview_scheduled' });
+      const selected = await Application.countDocuments({ userId, status: 'selected' });
+
+      const recentApplications = await Application.find({ userId })
+        .populate('jobId', 'title company salaryRange')
+        .sort('-appliedAt')
+        .limit(5);
+
+      const recommendedJobs = await Job.find({
+        isActive: true,
+        applicationDeadline: { $gte: new Date() },
+        'eligibilityCriteria.departments': req.user?.profile?.department,
+      })
+      .populate('companyId', 'name industry')
+      .limit(3);
+
+      res.json({
+        success: true,
+        data: {
+          stats: {
+            myApplications,
+            pendingApplications,
+            interviewScheduled,
+            selected,
+          },
+          recentApplications,
+          recommendedJobs,
+        },
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get dashboard data',
+      error: process.env.NODE_ENV === 'development' ? error : undefined,
+    });
+  }
+};

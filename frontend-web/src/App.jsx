@@ -1,6 +1,7 @@
 import { Toaster } from 'react-hot-toast';
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import NotificationToast from './components/NotificationToast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ChangePassword from './pages/student/ChangePassword';
@@ -25,7 +26,7 @@ import StudentHostel from './pages/student/Hostel_Enhanced';
 // Shared Pages
 import Fees from './pages/Fees';
 import Grades from './pages/Grades';
-import Hostel from './pages/Hostel';
+import Hostel from './pages/student/Hostel_Enhanced';
 import Library from './pages/Library';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
@@ -281,6 +282,7 @@ const App = () => {
       <AuthProvider>
         <Router>
           <AppRoutes />
+          <NotificationToast />
           <Toaster
             position="top-right"
             toastOptions={{

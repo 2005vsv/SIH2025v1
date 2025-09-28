@@ -21,23 +21,23 @@ const router = express.Router();
  *               - email
  *               - password
  *             properties:
-							name:
-								type: string
-								minLength: 2
-								maxLength: 50
-							email:
-								type: string
-								format: email
-							password:
-								type: string
-								minLength: 6
-							role:
-								type: string
-								enum: [student, admin]
-								default: student
-							studentId:
-								type: string
-								description: Required for students
+ *               name:
+ *                 type: string
+ *                 minLength: 2
+ *                 maxLength: 50
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *               role:
+ *                 type: string
+ *                 enum: [student, admin]
+ *                 default: student
+ *               studentId:
+ *                 type: string
+ *                 description: Required for students
 							profile:
 								type: object
 								properties:
@@ -84,10 +84,10 @@ router.post('/register', register);
  *               - password
  *             properties:
  *               email:
- *                 type
+ *                 type: string
  *                 format: email
  *               password:
- *                 type
+ *                 type: string
  *     responses:
  *       200:
  *         description: Login successful
@@ -120,7 +120,7 @@ router.post('/login', login);
  *               - refreshToken
  *             properties:
  *               refreshToken:
- *                 type
+ *                 type: string
  *     responses:
  *       200:
  *         description: Token refreshed successfully
@@ -150,9 +150,9 @@ router.post('/refresh', refresh);
  *               type: object
  *               properties:
  *                 success:
- *                   type
+ *                   type: boolean
  *                 message:
- *                   type
+ *                   type: string
  *                 data:
  *                   type: object
  *                   properties:

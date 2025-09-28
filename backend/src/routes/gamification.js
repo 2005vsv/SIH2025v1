@@ -14,6 +14,7 @@ const router = express.Router();
 
 // Student routes
 router.get('/points', auth, getUserProfile);
+router.get('/points/my', auth, getUserProfile);
 router.get('/badges', auth, getAllBadges);
 router.get('/achievements', auth, getUserProfile);
 router.get('/leaderboard', auth, getLeaderboard);

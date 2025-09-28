@@ -1,6 +1,9 @@
 import { motion } from 'framer-motion';
-import { AlertCircle, AlertTriangle, Bell, BellRing, CheckCircle, Filter, MoreVertical, Search, Trash2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Bell, BellRing, CheckCircle, Download, Filter, MoreVertical, Search, Trash2, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { notificationAPI } from '../../services/api';
+import socketService from '../../services/socket';
+import toast from 'react-hot-toast';
 
 const StudentNotifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -8,115 +11,117 @@ const StudentNotifications = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterRead, setFilterRead] = useState('all');
-  const [selectedNotifications, setSelectedNotifications] = useState([]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  // Removed selectedNotifications state as bulk actions are not supported
 
   useEffect(() => {
     fetchNotifications();
+
+    // Set up real-time notification listener
+    const handleNewNotification = (notification) => {
+      console.log('Received real-time notification:', notification);
+      setNotifications(prev => [notification, ...prev]);
+      toast.success('New notification received!');
+    };
+
+    socketService.on('notification', handleNewNotification);
+
+    return () => {
+      socketService.off('notification', handleNewNotification);
+    };
   }, []);
 
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('/api/notifications/my-notifications', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (data.success) {
-        setNotifications(data.data);
+      const response = await notificationAPI.getMy();
+      if (response.data.success) {
+        setNotifications(response.data.data.notifications || []);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMarkAsRead = async (notificationId) => {
+  const handleToggleRead = async (notificationId) => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`/api/notifications/mark-read/${notificationId}`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => 
+      const notification = notifications.find(n => n._id === notificationId);
+      if (!notification) return;
+
+      if (notification.isRead) {
+        // Mark as unread - this might not be supported by the API, so we'll just update locally
+        setNotifications(prev =>
+          prev.map(notif =>
+            notif._id === notificationId ? { ...notif, isRead: false } : notif
+          )
+        );
+      } else {
+        // Mark as read
+        await notificationAPI.markAsRead(notificationId);
+        setNotifications(prev =>
+          prev.map(notif =>
             notif._id === notificationId ? { ...notif, isRead: true } : notif
           )
         );
       }
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      console.error('Error toggling notification read status:', error);
     }
   };
 
-  const handleMarkAsUnread = async (notificationId) => {
+  const handleMarkAllAsRead = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`/api/notifications/mark-unread/${notificationId}`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => 
-            notif._id === notificationId ? { ...notif, isRead: false } : notif
-          )
-        );
-      }
+      await notificationAPI.markAllAsRead();
+      setNotifications(prev => prev.map(notif => ({ ...notif, isRead: true })));
     } catch (error) {
-      console.error('Error marking notification as unread:', error);
+      console.error('Error marking all notifications as read:', error);
     }
   };
 
   const handleDeleteNotification = async (notificationId) => {
+    if (!window.confirm('Are you sure you want to delete this notification?')) return;
+
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`/api/notifications/delete/${notificationId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setNotifications(prev => prev.filter(notif => notif._id !== notificationId));
-        setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
-      }
+      await notificationAPI.delete(notificationId);
+      setNotifications(prev => prev.filter(notif => notif._id !== notificationId));
+      toast.success('Notification deleted successfully');
     } catch (error) {
       console.error('Error deleting notification:', error);
+      toast.error(error.response?.data?.message || 'Failed to delete notification');
     }
   };
 
-  const handleBulkAction = async (action) => {
-    if (selectedNotifications.length === 0) return;
+  const downloadExamTimetable = (notification) => {
+    if (!notification.data) return;
 
-    try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`/api/notifications/bulk-${action}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ notificationIds: selectedNotifications }),
-      });
-
-      if (response.ok) {
-        if (action === 'markRead') {
-          setNotifications(prev => 
-            prev.map(notif => 
-              selectedNotifications.includes(notif._id) ? { ...notif, isRead: true } : notif
-            )
-          );
-        } else {
-          setNotifications(prev => 
-            prev.filter(notif => !selectedNotifications.includes(notif._id))
-          );
-        }
-        setSelectedNotifications([]);
+    const examData = notification.data;
+    const jsonData = {
+      examTimetable: {
+        course: `${examData.courseName} (${examData.courseCode})`,
+        examType: examData.examType,
+        date: new Date(examData.examDate).toLocaleDateString(),
+        time: `${examData.startTime} - ${examData.endTime}`,
+        duration: `${examData.duration} minutes`,
+        room: examData.room,
+        building: examData.building || 'N/A',
+        instructions: examData.instructions || 'N/A',
+        generatedOn: new Date().toISOString()
       }
-    } catch (error) {
-      console.error(`Error performing bulk ${action}:`, error);
-    }
+    };
+
+    const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `exam-timetable-${examData.courseCode}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success('Exam timetable downloaded!');
   };
 
   const handleSelectAll = () => {
@@ -270,78 +275,54 @@ const StudentNotifications = () => {
               </div>
             </div>
             <div className="flex gap-4">
-              <div className="flex items-center">
-                <Filter className="h-4 w-4 text-gray-400 mr-2" />
-              </div>
-              <select
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-              >
-                <option value="all">All Types</option>
-                <option value="info">Info</option>
-                <option value="success">Success</option>
-                <option value="warning">Warning</option>
-                <option value="error">Error</option>
-                <option value="announcement">Announcement</option>
-              </select>
-              <select
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                value={filterRead}
-                onChange={(e) => setFilterRead(e.target.value)}
-              >
-                <option value="all">All</option>
-                <option value="read">Read</option>
-                <option value="unread">Unread</option>
-              </select>
-            </div>
+               <div className="flex items-center">
+                 <Filter className="h-4 w-4 text-gray-400 mr-2" />
+               </div>
+               <select
+                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                 value={filterType}
+                 onChange={(e) => setFilterType(e.target.value)}
+               >
+                 <option value="all">All Types</option>
+                 <option value="info">Info</option>
+                 <option value="success">Success</option>
+                 <option value="warning">Warning</option>
+                 <option value="error">Error</option>
+                 <option value="announcement">Announcement</option>
+               </select>
+               <select
+                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                 value={filterRead}
+                 onChange={(e) => setFilterRead(e.target.value)}
+               >
+                 <option value="all">All</option>
+                 <option value="read">Read</option>
+                 <option value="unread">Unread</option>
+               </select>
+               <button
+                 onClick={() => setSoundEnabled(!soundEnabled)}
+                 className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                   soundEnabled
+                     ? 'bg-green-600 text-white hover:bg-green-700'
+                     : 'bg-gray-600 text-white hover:bg-gray-700'
+                 }`}
+                 title={soundEnabled ? 'Disable notification sounds' : 'Enable notification sounds'}
+               >
+                 {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                 {soundEnabled ? 'Sound On' : 'Sound Off'}
+               </button>
+               <button
+                 onClick={handleMarkAllAsRead}
+                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+               >
+                 Mark All as Read
+               </button>
+             </div>
           </div>
-
-          {selectedNotifications.length > 0 && (
-            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                {selectedNotifications.length} selected
-              </span>
-              <button
-                onClick={() => handleBulkAction('markRead')}
-                className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Mark as Read
-              </button>
-              <button
-                onClick={() => handleBulkAction('delete')}
-                className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Delete
-              </button>
-              <button
-                onClick={() => setSelectedNotifications([])}
-                className="px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-400 transition-colors dark:bg-gray-600 dark:text-gray-300 dark:hover:bg-gray-500"
-              >
-                Clear Selection
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Notifications List */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-          {filteredNotifications.length > 0 && (
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-              <label className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  checked={selectedNotifications.length === filteredNotifications.length}
-                  onChange={handleSelectAll}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                />
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  Select all ({filteredNotifications.length})
-                </span>
-              </label>
-            </div>
-          )}
-
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
             {filteredNotifications.map((notification) => (
               <motion.div
@@ -353,19 +334,6 @@ const StudentNotifications = () => {
                 }`}
               >
                 <div className="flex items-start space-x-4">
-                  <input
-                    type="checkbox"
-                    checked={selectedNotifications.includes(notification._id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedNotifications(prev => [...prev, notification._id]);
-                      } else {
-                        setSelectedNotifications(prev => prev.filter(id => id !== notification._id));
-                      }
-                    }}
-                    className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  />
-
                   <div className="flex-shrink-0 mt-1">
                     {getTypeIcon(notification.type)}
                   </div>
@@ -396,9 +364,6 @@ const StudentNotifications = () => {
                         <span>
                           {new Date(notification.createdAt).toLocaleDateString()}
                         </span>
-                        <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
                       </div>
                     </div>
 
@@ -416,6 +381,15 @@ const StudentNotifications = () => {
                             {notification.actionText}
                           </a>
                         )}
+                        {notification.category === 'exam' && (
+                          <button
+                            onClick={() => downloadExamTimetable(notification)}
+                            className="flex items-center gap-1 text-sm text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 font-medium"
+                          >
+                            <Download className="w-3 h-3" />
+                            Download
+                          </button>
+                        )}
                         {notification.metadata?.sender && (
                           <span className="text-gray-500 dark:text-gray-400">
                             From: {notification.metadata.sender}
@@ -424,7 +398,7 @@ const StudentNotifications = () => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => notification.isRead ? handleMarkAsUnread(notification._id) : handleMarkAsRead(notification._id)}
+                          onClick={() => handleToggleRead(notification._id)}
                           className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                         >
                           {notification.isRead ? 'Mark as unread' : 'Mark as read'}
@@ -433,7 +407,7 @@ const StudentNotifications = () => {
                           onClick={() => handleDeleteNotification(notification._id)}
                           className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          Delete
                         </button>
                       </div>
                     </div>

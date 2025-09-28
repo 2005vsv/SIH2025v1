@@ -7,10 +7,13 @@ const {
   markAsRead,
   markAllAsRead,
   deleteNotification,
+  deleteUserNotification,
   updateNotification,
   getNotificationStats,
   sendBulkNotifications,
-  getUnreadCount
+  getUnreadCount,
+  sendFeeNotification,
+  getFeeNotifications
 } = require('../controllers/notificationController');
 const { auth, authorize } = require('../middleware/auth');
 
@@ -450,5 +453,114 @@ router.put('/:id', auth, authorize('admin'), updateNotification);
  *         description: Notification not found
  */
 router.delete('/:id', auth, authorize('admin'), deleteNotification);
+
+/**
+ * @swagger
+ * /api/notifications/fee/send:
+ *   post:
+ *     summary: Send fee notification to students (admin only)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - message
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 example: "Tuition Fee Due"
+ *               message:
+ *                 type: string
+ *                 example: "Your tuition fee payment is due on December 31st"
+ *               recipientType:
+ *                 type: string
+ *                 enum: [all, department, semester, admissionYear, specific]
+ *                 default: all
+ *               targetAudience:
+ *                 type: object
+ *                 properties:
+ *                   department:
+ *                     type: string
+ *                   semester:
+ *                     type: integer
+ *                   admissionYear:
+ *                     type: integer
+ *               recipientIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               priority:
+ *                 type: string
+ *                 enum: [low, medium, high, urgent]
+ *                 default: high
+ *               actionUrl:
+ *                 type: string
+ *                 default: "/student/fees"
+ *               actionText:
+ *                 type: string
+ *                 default: "View Fee Details"
+ *               feeData:
+ *                 type: object
+ *               expiresAt:
+ *                 type: string
+ *                 format: date-time
+ *     responses:
+ *       201:
+ *         description: Fee notification sent successfully
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
+ */
+router.post('/fee/send', auth, authorize('admin'), sendFeeNotification);
+
+/**
+ * @swagger
+ * /api/notifications/fee/my:
+ *   get:
+ *     summary: Get fee notifications for current student
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: isRead
+ *         schema:
+ *           type: boolean
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: unreadOnly
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: Fee notifications retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Student access required
+ */
+router.get('/fee/my', auth, authorize('student'), getFeeNotifications);
 
 module.exports = router;

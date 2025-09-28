@@ -93,19 +93,19 @@ const StudentLibrary = () => {
   };
 
   const filteredBooks = books.filter(book => {
-    const matchesSearch = book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         book.isbn.includes(searchTerm);
+    const matchesSearch = (book.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                         (book.author?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                         (book.isbn || '').includes(searchTerm);
     const matchesCategory = selectedCategory === 'all' || book.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const categories = [...new Set(books.map(book => book.category))];
+  const categories = [...new Set(books.map(book => book.category).filter(Boolean))];
   const activeBorrowedBooks = borrowedBooks.filter(b => b.status === 'borrowed');
   const overdueBooks = borrowedBooks.filter(b => b.status === 'overdue');
 
   const isBookBorrowed = (bookId) => {
-    return activeBorrowedBooks.some(b => b.bookId._id === bookId);
+    return activeBorrowedBooks.some(b => b.bookId?._id === bookId);
   };
 
   const getDaysUntilDue = (dueDate) => {
@@ -275,17 +275,19 @@ const StudentLibrary = () => {
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {book.title}
+                        {book.title || 'Unknown Title'}
                       </h3>
                       <p className="text-gray-600 dark:text-gray-400">
-                        by {book.author}
+                        by {book.author || 'Unknown Author'}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        ISBN: {book.isbn}
+                        ISBN: {book.isbn || 'N/A'}
                       </p>
-                      <span className="inline-block px-2 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full dark:bg-blue-900 dark:text-blue-200">
-                        {book.category}
-                      </span>
+                      {book.category && (
+                        <span className="inline-block px-2 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full dark:bg-blue-900 dark:text-blue-200">
+                          {book.category}
+                        </span>
+                      )}
                     </div>
                     
                     {book.description && (
@@ -296,7 +298,7 @@ const StudentLibrary = () => {
 
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                        Available: {book.availableCopies}/{book.totalCopies}
+                        Available: {book.availableCopies || 0}/{book.totalCopies || 0}
                       </span>
                       <div className="flex items-center space-x-1">
                         <Star className="h-4 w-4 text-yellow-400 fill-current" />
@@ -306,15 +308,15 @@ const StudentLibrary = () => {
 
                     <button
                       onClick={() => handleBorrowBook(book._id)}
-                      disabled={book.availableCopies === 0 || isBookBorrowed(book._id)}
+                      disabled={(book.availableCopies || 0) === 0 || isBookBorrowed(book._id)}
                       className={`w-full py-2 px-4 rounded-lg font-medium text-sm transition-colors ${
-                        book.availableCopies === 0 || isBookBorrowed(book._id)
+                        (book.availableCopies || 0) === 0 || isBookBorrowed(book._id)
                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-600 dark:text-gray-400'
                           : 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
                       }`}
                     >
-                      {isBookBorrowed(book._id) ? 'Already Borrowed' : 
-                       book.availableCopies === 0 ? 'Out of Stock' : 'Borrow Book'}
+                      {isBookBorrowed(book._id) ? 'Already Borrowed' :
+                       (book.availableCopies || 0) === 0 ? 'Out of Stock' : 'Borrow Book'}
                     </button>
                   </div>
                 </motion.div>
@@ -346,10 +348,10 @@ const StudentLibrary = () => {
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {borrowedBook.bookId.title}
+                        {borrowedBook.bookId?.title || 'Unknown Title'}
                       </h3>
                       <p className="text-gray-600 dark:text-gray-400">
-                        by {borrowedBook.bookId.author}
+                        by {borrowedBook.bookId?.author || 'Unknown Author'}
                       </p>
                       <div className="mt-2 space-y-1">
                         <p className="text-sm text-gray-600 dark:text-gray-400">

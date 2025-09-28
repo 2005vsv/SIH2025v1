@@ -56,7 +56,7 @@ const router = express.Router();
 router.post('/message', auth, async (req, res) => {
   try {
     const { message, context } = req.body;
-    
+
     // Mock chatbot response - replace with actual AI integration
     const responses = {
       'fees': 'Your current fees status shows pending payments of ₹15,000. You can pay online through the fees section.',
@@ -69,7 +69,7 @@ router.post('/message', auth, async (req, res) => {
 
     const lowerMessage = message.toLowerCase();
     let response = responses.default;
-    
+
     for (const [key, value] of Object.entries(responses)) {
       if (lowerMessage.includes(key)) {
         response = value;
@@ -86,7 +86,7 @@ router.post('/message', auth, async (req, res) => {
     ];
 
     res.json({
-      success,
+      success: true,
       data: {
         response,
         suggestions: suggestions.slice(0, 3),
@@ -95,7 +95,7 @@ router.post('/message', auth, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({
-      success,
+      success: false,
       message: 'Failed to process chatbot query',
       error: process.env.NODE_ENV === 'development' ? error : undefined
     });
@@ -124,7 +124,7 @@ router.post('/message', auth, async (req, res) => {
 router.get('/conversations', auth, async (req, res) => {
   try {
     const { limit = 20 } = req.query;
-    
+
     // Mock chat history - replace with actual database query
     const history = [
       {
@@ -142,7 +142,7 @@ router.get('/conversations', auth, async (req, res) => {
     ];
 
     res.json({
-      success,
+      success: true,
       data: {
         history: history.slice(0, Number(limit)),
         total: history.length
@@ -150,7 +150,7 @@ router.get('/conversations', auth, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({
-      success,
+      success: false,
       message: 'Failed to retrieve chat history',
       error: process.env.NODE_ENV === 'development' ? error : undefined
     });

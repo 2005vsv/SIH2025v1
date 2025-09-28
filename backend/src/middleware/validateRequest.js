@@ -16,9 +16,9 @@ const validateRequest = (schema) => {
       }));
 
       res.status(400).json({
-        success,
+        success: false,
         message: 'Validation failed',
-        errors,
+        errors: errorMessages,
       });
       return;
     }
@@ -43,9 +43,9 @@ const validateQuery = (schema) => {
       }));
 
       res.status(400).json({
-        success,
+        success: false,
         message: 'Query validation failed',
-        errors,
+        errors: errorMessages,
       });
       return;
     }
@@ -68,9 +68,9 @@ const validateParams = (schema) => {
       }));
 
       res.status(400).json({
-        success,
+        success: false,
         message: 'Parameter validation failed',
-        errors,
+        errors: errorMessages,
       });
       return;
     }

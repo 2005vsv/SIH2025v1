@@ -866,6 +866,42 @@ exports.getCustomReport = async (req, res) => {
         ]);
         break;
 
+      case 'placement_statistics':
+        reportData = await Application.aggregate([
+          {
+            $match: {
+              userId: { $in: userIds },
+              createdAt: dateFilter
+            }
+          },
+          {
+            $group: {
+              _id: '$status',
+              count: { $sum: 1 }
+            }
+          },
+          { $sort: { count: -1 } }
+        ]);
+        break;
+
+      case 'certificate_issuance':
+        reportData = await require('../models/Certificate').aggregate([
+          {
+            $match: {
+              userId: { $in: userIds },
+              issueDate: dateFilter
+            }
+          },
+          {
+            $group: {
+              _id: '$type',
+              count: { $sum: 1 }
+            }
+          },
+          { $sort: { count: -1 } }
+        ]);
+        break;
+
       default:
         throw new APIError('Invalid report type', 400);
     }
@@ -878,6 +914,173 @@ exports.getCustomReport = async (req, res) => {
         filters: { department, semester },
         reportData
       }
+    });
+  } catch (error) {
+    throw new APIError(error.message, 400);
+  }
+};
+
+// Get real-time analytics dashboard
+exports.getRealtimeAnalytics = async (req, res) => {
+  try {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Today's activity
+    const todayStats = await Promise.all([
+      User.countDocuments({ createdAt: { $gte: today } }),
+      Transaction.countDocuments({ createdAt: { $gte: today }, status: 'completed' }),
+      BorrowRecord.countDocuments({ borrowedAt: { $gte: today } }),
+      Application.countDocuments({ createdAt: { $gte: today } }),
+    ]);
+
+    // Weekly trends
+    const weeklyStats = await Promise.all([
+      User.countDocuments({ createdAt: { $gte: thisWeek } }),
+      Transaction.aggregate([
+        { $match: { createdAt: { $gte: thisWeek }, status: 'completed' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]),
+      ExamResult.countDocuments({ createdAt: { $gte: thisWeek } }),
+    ]);
+
+    // System health
+    const systemHealth = {
+      totalUsers: await User.countDocuments(),
+      activeUsers: await User.countDocuments({ isActive: true }),
+      totalRevenue: (await Transaction.aggregate([
+        { $match: { status: 'completed' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]))[0]?.total || 0,
+      pendingFees: await require('../models/Fee').countDocuments({ status: 'pending' }),
+      overdueBooks: await BorrowRecord.countDocuments({
+        status: 'borrowed',
+        dueDate: { $lt: now }
+      }),
+      activeJobs: await require('../models/Job').countDocuments({ isActive: true }),
+    };
+
+    res.json({
+      success: true,
+      data: {
+        todayActivity: {
+          newUsers: todayStats[0],
+          payments: todayStats[1],
+          bookBorrows: todayStats[2],
+          jobApplications: todayStats[3],
+        },
+        weeklyTrends: {
+          newUsers: weeklyStats[0],
+          revenue: weeklyStats[1][0]?.total || 0,
+          examResults: weeklyStats[2],
+        },
+        systemHealth,
+        timestamp: now.toISOString(),
+      }
+    });
+  } catch (error) {
+    throw new APIError(error.message, 400);
+  }
+};
+
+// Get predictive analytics
+exports.getPredictiveAnalytics = async (req, res) => {
+  try {
+    const { type } = req.query;
+
+    let predictions = {};
+
+    switch (type) {
+      case 'fee_collection':
+        // Predict next month's fee collection based on historical data
+        const monthlyCollections = await Transaction.aggregate([
+          {
+            $match: {
+              status: 'completed',
+              createdAt: { $gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) }
+            }
+          },
+          {
+            $group: {
+              _id: {
+                year: { $year: '$createdAt' },
+                month: { $month: '$createdAt' }
+              },
+              total: { $sum: '$amount' },
+              count: { $sum: 1 }
+            }
+          },
+          { $sort: { '_id.year': 1, '_id.month': 1 } }
+        ]);
+
+        // Simple linear regression for prediction
+        if (monthlyCollections.length >= 3) {
+          const n = monthlyCollections.length;
+          const sumX = (n * (n + 1)) / 2;
+          const sumY = monthlyCollections.reduce((sum, item) => sum + item.total, 0);
+          const sumXY = monthlyCollections.reduce((sum, item, index) => sum + (index + 1) * item.total, 0);
+          const sumXX = (n * (n + 1) * (2 * n + 1)) / 6;
+
+          const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+          const intercept = (sumY - slope * sumX) / n;
+
+          const nextMonth = n + 1;
+          const predictedAmount = slope * nextMonth + intercept;
+
+          predictions.feeCollection = {
+            historicalData: monthlyCollections.slice(-6), // Last 6 months
+            predictedNextMonth: Math.max(0, predictedAmount),
+            confidence: 'medium', // Based on data points
+          };
+        }
+        break;
+
+      case 'student_performance':
+        // Predict student performance trends
+        const performanceTrends = await require('../models/ExamResult').aggregate([
+          {
+            $match: {
+              createdAt: { $gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000) } // Last 6 months
+            }
+          },
+          {
+            $group: {
+              _id: {
+                year: { $year: '$createdAt' },
+                month: { $month: '$createdAt' }
+              },
+              avgPercentage: { $avg: '$percentage' },
+              studentCount: { $addToSet: '$userId' }
+            }
+          },
+          {
+            $project: {
+              avgPercentage: 1,
+              studentCount: { $size: '$studentCount' }
+            }
+          },
+          { $sort: { '_id.year': 1, '_id.month': 1 } }
+        ]);
+
+        predictions.studentPerformance = {
+          trends: performanceTrends,
+          prediction: performanceTrends.length > 0 ?
+            performanceTrends[performanceTrends.length - 1].avgPercentage * 1.02 : 0, // 2% improvement
+        };
+        break;
+
+      default:
+        predictions = {
+          availableTypes: ['fee_collection', 'student_performance'],
+          message: 'Select a prediction type'
+        };
+    }
+
+    res.json({
+      success: true,
+      data: predictions
     });
   } catch (error) {
     throw new APIError(error.message, 400);

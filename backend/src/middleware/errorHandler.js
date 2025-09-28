@@ -31,6 +31,12 @@ const errorHandler = (err, req, res, next) => {
     error = { message, statusCode: 400 };
   }
 
+  // Account locked error
+  if (err.message && err.message.includes('Account is temporarily locked')) {
+    const message = err.message;
+    error = { message, statusCode: 423 };
+  }
+
   // JWT errors
   if (err.name === 'JsonWebTokenError') {
     const message = 'Invalid token';

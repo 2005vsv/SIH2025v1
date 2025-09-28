@@ -6,6 +6,13 @@ const express = require("express");
 const roleCheck = (requiredRole) => {
   return (req, res, next) => {
     try {
+      console.log('DEBUG ROLE CHECK:', {
+        requiredRole,
+        userRole: req.user?.role,
+        userId: req.user?.id,
+        userEmail: req.user?.email
+      });
+
       if (!req.user) {
         res.status(401).json({
           success: false,
@@ -14,16 +21,23 @@ const roleCheck = (requiredRole) => {
         return;
       }
 
-      if (req.user.role !== requiredRole && req.user.role !== 'admin') {
+      // Handle both single role and array of roles
+      const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+
+      console.log('DEBUG ROLE CHECK - Allowed roles:', allowedRoles);
+      console.log('DEBUG ROLE CHECK - User role:', req.user.role);
+
+      if (!allowedRoles.includes(req.user.role) && req.user.role !== 'admin') {
         res.status(403).json({
           success: false,
-          message: `Access denied. ${requiredRole} role required.`,
+          message: `Access denied. Required roles: ${allowedRoles.join(' or ')}`,
         });
         return;
       }
 
       next();
     } catch (error) {
+      console.error('Role check error:', error);
       res.status(500).json({
         success: false,
         message: 'Server error during role check',

@@ -38,6 +38,9 @@ exports.createNotification = async (req, res) => {
     if (recipientType === 'all') {
       const users = await User.find({ role: 'student' }).select('_id');
       recipients = users.map(u => ({ _id: u._id }));
+    } else if (recipientType === 'admin') {
+      const users = await User.find({ role: 'admin' }).select('_id');
+      recipients = users.map(u => ({ _id: u._id }));
     } else if (recipientType === 'department' && targetAudience?.department) {
       const users = await User.find({
         role: 'student',
@@ -73,7 +76,25 @@ exports.createNotification = async (req, res) => {
           createdBy: req.user && req.user.id
         });
 
-        return await notification.save();
+        const savedNotification = await notification.save();
+
+        // Emit real-time notification via Socket.IO
+        if (global.io) {
+          global.io.to(`user_${recipient._id}`).emit('notification', {
+            id: savedNotification._id,
+            title: savedNotification.title,
+            message: savedNotification.message,
+            type: savedNotification.type,
+            category: savedNotification.category,
+            priority: savedNotification.priority,
+            actionUrl: savedNotification.actionUrl,
+            actionText: savedNotification.actionText,
+            data: savedNotification.data,
+            createdAt: savedNotification.createdAt
+          });
+        }
+
+        return savedNotification;
       })
     );
 
@@ -552,6 +573,225 @@ exports.sendBulkNotifications = async (req, res) => {
         errors: errors.length,
         errorDetails: errors
       }
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// Send fee notification (Admin only)
+exports.sendFeeNotification = async (req, res) => {
+  try {
+    const {
+      title,
+      message,
+      recipientType,
+      targetAudience,
+      priority = 'high',
+      actionUrl = '/student/fees',
+      actionText = 'View Fee Details',
+      feeData,
+      expiresAt
+    } = req.body;
+
+    if (!title || !message) {
+      throw new APIError('Title and message are required', 400);
+    }
+
+    let recipients = [];
+
+    // Determine recipients based on type - only students
+    if (recipientType === 'all') {
+      const users = await User.find({ role: 'student' }).select('_id name email studentId');
+      recipients = users;
+    } else if (recipientType === 'department' && targetAudience?.department) {
+      const users = await User.find({
+        role: 'student',
+        'profile.department': targetAudience.department
+      }).select('_id name email studentId');
+      recipients = users;
+    } else if (recipientType === 'semester' && targetAudience?.semester) {
+      const users = await User.find({
+        role: 'student',
+        'profile.semester': targetAudience.semester
+      }).select('_id name email studentId');
+      recipients = users;
+    } else if (recipientType === 'admissionYear' && targetAudience?.admissionYear) {
+      const users = await User.find({
+        role: 'student',
+        'profile.admissionYear': targetAudience.admissionYear
+      }).select('_id name email studentId');
+      recipients = users;
+    } else if (recipientType === 'specific' && req.body.recipientIds) {
+      // Verify all recipients are students
+      const users = await User.find({
+        _id: { $in: req.body.recipientIds },
+        role: 'student'
+      }).select('_id name email studentId');
+      recipients = users;
+    } else {
+      throw new APIError('Invalid recipient configuration', 400);
+    }
+
+    if (recipients.length === 0) {
+      throw new APIError('No students found matching the criteria', 400);
+    }
+
+    // Create individual notifications for each recipient
+    const notifications = await Promise.all(
+      recipients.map(async (recipient) => {
+        const notification = new Notification({
+          userId: recipient._id,
+          title,
+          message,
+          type: 'warning',
+          category: 'fee',
+          priority,
+          actionUrl,
+          actionText,
+          data: {
+            ...feeData,
+            recipientInfo: {
+              name: recipient.name,
+              email: recipient.email,
+              studentId: recipient.studentId
+            }
+          },
+          expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+          createdBy: req.user && req.user.id
+        });
+
+        const savedNotification = await notification.save();
+
+        // Emit real-time notification via Socket.IO
+        if (global.io) {
+          global.io.to(`user_${recipient._id}`).emit('notification', {
+            id: savedNotification._id,
+            title: savedNotification.title,
+            message: savedNotification.message,
+            type: savedNotification.type,
+            category: savedNotification.category,
+            priority: savedNotification.priority,
+            actionUrl: savedNotification.actionUrl,
+            actionText: savedNotification.actionText,
+            data: savedNotification.data,
+            createdAt: savedNotification.createdAt
+          });
+        }
+
+        return savedNotification;
+      })
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `Fee notification sent to ${notifications.length} students successfully`,
+      data: {
+        count: notifications.length,
+        recipients: recipients.map(r => ({ id: r._id, name: r.name, email: r.email })),
+        notifications: notifications.slice(0, 5)
+      }
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Get fee notifications for students
+exports.getFeeNotifications = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      isRead,
+      priority,
+      unreadOnly
+    } = req.query;
+
+    const userId = req.user && req.user.id;
+    if (!userId) {
+      throw new APIError('User ID required', 400);
+    }
+
+    // Only students can access fee notifications
+    if (req.user.role !== 'student') {
+      throw new APIError('Only students can access fee notifications', 403);
+    }
+
+    const filter = {
+      userId,
+      category: 'fee',
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: { $gt: new Date() } }
+      ]
+    };
+
+    if (isRead !== undefined) filter.isRead = isRead === 'true';
+    if (priority) filter.priority = priority;
+    if (unreadOnly === 'true') filter.isRead = false;
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const notifications = await Notification.find(filter)
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    const total = await Notification.countDocuments(filter);
+
+    res.json({
+      success: true,
+      data: {
+        notifications,
+        pagination: {
+          current: Number(page),
+          pages: Math.ceil(total / Number(limit)),
+          total
+        }
+      }
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Delete user's own notification
+exports.deleteUserNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user && req.user.id;
+
+    if (!userId) {
+      res.status(400).json({ success: false, message: 'User ID required' });
+      return;
+    }
+
+    const notification = await Notification.findById(id);
+
+    if (!notification) {
+      res.status(404).json({ success: false, message: 'Notification not found' });
+      return;
+    }
+
+    // Check if user owns this notification
+    if (notification.userId.toString() !== userId) {
+      res.status(403).json({ success: false, message: 'Access denied' });
+      return;
+    }
+
+    await Notification.findByIdAndDelete(id);
+
+    res.json({
+      success: true,
+      message: 'Notification deleted successfully'
     });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
