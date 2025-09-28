@@ -1,3 +1,7 @@
+export const interviewAPI = {
+  scheduleInterview: (applicationId, data) => api.post(`/interviews/schedule/${applicationId}`, data),
+  getMyInterviews: () => api.get('/interviews/my-interviews'),
+};
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -5,15 +9,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 // Create axios instance
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDUzZDgzYjQxMTE1OGZmMGVlZTZjZCIsImVtYWlsIjoiYmFidUBnbWFpbC5jb20iLCJyb2xlIjoic3R1ZGVudCIsInN0dWRlbnRJZCI6IjJHSTIzQ1MwMzYiLCJpYXQiOjE3NTg5NTQwMTQsImV4cCI6MTc1ODk1NzYxNH0.UjsK170eo9Jd_WEikTI0RVNivx0B4alxQ0zc_PVm3R4');
+    const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -97,11 +98,12 @@ export const libraryAPI = {
   borrowBook: (id) => api.post(`/library/books/${id}/borrow`),
   returnBook: (borrowId) => api.post(`/library/borrow/${borrowId}/return`),
   getBorrowHistory: () => api.get('/library/borrow-history'),
+  deleteBorrowRecord: (id) => api.delete(`/library/borrow/${id}`),
 };
 
 export const examAPI = {
   getAll: (params) => api.get('/exams', { params }),
-  getMy: () => api.get('/exams/my'),
+  getMy: () => api.get('/exams/results'),
   getById: (id) => api.get(`/exams/${id}`),
   create: (data) => api.post('/exams', data),
   update: (id, data) => api.put(`/exams/${id}`, data),
@@ -114,15 +116,17 @@ export const placementAPI = {
   getJob: (id) => api.get(`/placements/jobs/${id}`),
   createJob: (data) => api.post('/placements/jobs', data),
   updateJob: (id, data) => api.put(`/placements/jobs/${id}`, data),
+  deleteJob: (id) => api.delete(`/placements/jobs/${id}`),
   applyJob: (id, data) => api.post(`/placements/jobs/${id}/apply`, data),
   getMyApplications: () => api.get('/placements/applications/my'),
   getApplications: (jobId) => api.get(`/placements/jobs/${jobId}/applications`),
+  getAllStudentApplications: () => api.get('/placements/applications/all'),
 };
 
 export const gamificationAPI = {
   getLeaderboard: (params) => api.get('/gamification/leaderboard', { params }),
   getBadges: () => api.get('/gamification/badges'),
-  getMyPoints: () => api.get('/gamification/points/my'),
+  getMyPoints: () => api.get('/gamification/points'),
   getMyBadges: () => api.get('/gamification/badges/my'),
 };
 

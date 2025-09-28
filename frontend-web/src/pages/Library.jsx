@@ -181,9 +181,9 @@ const Library = () => {
               <Clock className="w-8 h-8 text-blue-600 mr-4" />
               <div>
                 <p className="text-sm text-gray-600">Borrowed</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {borrowedBooks.filter(book => book.status === 'active').length}
-                </p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {borrowedBooks.filter(book => book.status === 'borrowed').length}
+                  </p>
               </div>
             </div>
           </div>
@@ -295,24 +295,33 @@ const Library = () => {
                                 : 'Not available'}
                             </span>
                           </div>
-                          
-                          <button
-                            onClick={() => handleBorrowBook(book._id)}
-                            disabled={book.availableCopies === 0 || borrowingBookId === book._id}
-                            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                          >
-                            {borrowingBookId === book._id ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                Borrowing...
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="w-4 h-4 mr-2" />
-                                Borrow
-                              </>
-                            )}
-                          </button>
+                          {borrowedBooks.some(b => b.bookId && b.bookId._id === book._id && b.status === 'borrowed') ? (
+                            <button
+                              disabled
+                              className="bg-gray-300 text-gray-600 px-4 py-2 rounded-lg flex items-center cursor-not-allowed text-sm"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Borrowed
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleBorrowBook(book._id)}
+                              disabled={book.availableCopies === 0 || borrowingBookId === book._id}
+                              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                              {borrowingBookId === book._id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                  Borrowing...
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-4 h-4 mr-2" />
+                                  Borrow
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -333,22 +342,20 @@ const Library = () => {
               <div className="p-6 border-b border-gray-200">
                 <h2 className="text-xl font-semibold text-gray-900">My Borrowed Books</h2>
               </div>
-              
               <div className="p-6">
-                {borrowedBooks.length === 0 ? (
+                {borrowedBooks.filter(b => b.status === 'borrowed').length === 0 ? (
                   <div className="text-center py-8">
                     <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600">No books borrowed yet</p>
+                    <p className="text-gray-600">No books currently borrowed</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {borrowedBooks.slice(0, 5).map((borrowedBook) => (
+                  <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                    {borrowedBooks.filter(b => b.status === 'borrowed').map((borrowedBook) => (
                       <div key={borrowedBook._id} className="p-4 border border-gray-200 rounded-lg">
                         <div className="flex items-start">
                           <div className="w-12 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded flex items-center justify-center mr-3">
                             <BookOpen className="w-6 h-6 text-white" />
                           </div>
-                          
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium text-gray-900 truncate mb-1">
                               {borrowedBook.bookId.title}
@@ -356,28 +363,19 @@ const Library = () => {
                             <p className="text-sm text-gray-600 mb-2">
                               {borrowedBook.bookId.author}
                             </p>
-                            
                             <div className="flex items-center mb-2">
                               {getStatusIcon(borrowedBook.status)}
                               <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(borrowedBook.status)}`}>
                                 {borrowedBook.status.charAt(0).toUpperCase() + borrowedBook.status.slice(1)}
                               </span>
                             </div>
-                            
                             <div className="text-xs text-gray-500 space-y-1">
                               <div className="flex items-center">
                                 <Calendar className="w-3 h-3 mr-1" />
                                 Due: {new Date(borrowedBook.dueDate).toLocaleDateString()}
                               </div>
-                              {borrowedBook.returnDate && (
-                                <div className="flex items-center">
-                                  <CheckCircle className="w-3 h-3 mr-1" />
-                                  Returned: {new Date(borrowedBook.returnDate).toLocaleDateString()}
-                                </div>
-                              )}
                             </div>
-                            
-                            {borrowedBook.status === 'active' && (
+                            {borrowedBook.status === 'borrowed' && (
                               <button
                                 onClick={() => handleReturnBook(borrowedBook._id)}
                                 className="mt-2 bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition-colors"
@@ -388,6 +386,59 @@ const Library = () => {
                           </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="p-6 border-t border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Borrow History</h2>
+                {borrowedBooks.length === 0 ? (
+                  <div className="text-center py-8">
+                    <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-gray-600">No borrow history found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-64 overflow-y-auto pr-2">
+                    {borrowedBooks.map((borrowedBook) => (
+                      !borrowedBook.bookId ? null : (
+                        <div key={borrowedBook._id} className="p-4 border border-gray-100 rounded-lg bg-gray-50">
+                          <div className="flex items-start">
+                            <div className="w-10 h-14 bg-gradient-to-br from-gray-400 to-gray-600 rounded flex items-center justify-center mr-3">
+                              <BookOpen className="w-5 h-5 text-white" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-gray-900 truncate mb-1">
+                                {borrowedBook.bookId.title || 'Unknown'}
+                              </h4>
+                              <p className="text-sm text-gray-600 mb-2">
+                                {borrowedBook.bookId.author || 'N/A'}
+                              </p>
+                              <div className="flex items-center mb-2">
+                                {getStatusIcon(borrowedBook.status)}
+                                <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(borrowedBook.status)}`}>
+                                  {borrowedBook.status ? borrowedBook.status.charAt(0).toUpperCase() + borrowedBook.status.slice(1) : 'N/A'}
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-500 space-y-1">
+                                <div className="flex items-center">
+                                  <Calendar className="w-3 h-3 mr-1" />
+                                  Borrowed: {borrowedBook.borrowDate ? new Date(borrowedBook.borrowDate).toLocaleDateString() : 'N/A'}
+                                </div>
+                                <div className="flex items-center">
+                                  <Calendar className="w-3 h-3 mr-1" />
+                                  Due: {borrowedBook.dueDate ? new Date(borrowedBook.dueDate).toLocaleDateString() : 'N/A'}
+                                </div>
+                                {borrowedBook.returnDate && (
+                                  <div className="flex items-center">
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Returned: {new Date(borrowedBook.returnDate).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
                     ))}
                   </div>
                 )}

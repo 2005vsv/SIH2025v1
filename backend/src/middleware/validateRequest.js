@@ -16,9 +16,9 @@ const validateRequest = (schema) => {
       }));
 
       res.status(400).json({
-        success,
+        success: false,
         message: 'Validation failed',
-        errors,
+        errors: errorMessages,
       });
       return;
     }

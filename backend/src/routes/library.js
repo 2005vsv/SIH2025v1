@@ -11,6 +11,7 @@ const {
     returnBook,
     updateBook,
 } = require('../controllers/libraryController');
+const { deleteBorrowRecord } = require('../controllers/deleteBorrowRecordController');
 const { auth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
 
@@ -43,12 +44,23 @@ router.put('/books/:id', auth, requireRole('admin'), updateBook);
 router.delete('/books/:id', auth, requireRole('admin'), deleteBook);
 
 // Borrow book
+// RESTful borrow route for students
+router.post('/books/:id/borrow', auth, borrowBook);
+// Legacy borrow route (if needed)
 router.post('/borrow', auth, borrowBook);
 
 // Return book
+// RESTful return route for students
+router.post('/borrow/:id/return', auth, returnBook);
+// Legacy return route (if needed)
 router.post('/return', auth, returnBook);
 
 // Get borrow history
 router.get('/history', auth, getBorrowHistory);
+// Alias for admin portal compatibility
+router.get('/borrow-history', auth, getBorrowHistory);
+
+// Delete borrow record (Admin only)
+router.delete('/borrow/:id', auth, requireRole('admin'), deleteBorrowRecord);
 
 module.exports = router;

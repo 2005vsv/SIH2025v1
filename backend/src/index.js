@@ -183,6 +183,7 @@ app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/system', systemRoutes);
 // app.use('/api/uploads', uploadsRoutes);
 app.use('/api/webhooks', webhooksRoutes);
+app.use('/api/interviews', require('./routes/interviews'));
 // app.use('/api/health', healthRoutes);
 
 // 404 handler for API routes

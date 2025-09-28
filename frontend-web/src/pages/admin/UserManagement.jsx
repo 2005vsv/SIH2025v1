@@ -83,19 +83,54 @@ const UserManagement = () => {
   };
 
   const handleCreateUser = async () => {
+    // Frontend validation for required fields
+    if (!newUser.name.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+    if (!newUser.email.trim()) {
+      toast.error('Email is required');
+      return;
+    }
+    // Simple email format check
+    if (!/^\S+@\S+\.\S+$/.test(newUser.email.trim())) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    if (!newUser.password || newUser.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
     try {
+      // Prepare profile object, only include dateOfBirth if valid
+      const profile = {
+        ...newUser.profile,
+        semester: Number(newUser.profile.semester) || 1,
+        admissionYear: Number(newUser.profile.admissionYear) || new Date().getFullYear(),
+        cgpa: Number(newUser.profile.cgpa) || 0,
+        sgpa: Number(newUser.profile.sgpa) || 0
+      };
+      // Validate dateOfBirth
+      if (profile.dateOfBirth) {
+        const date = new Date(profile.dateOfBirth);
+        if (!isNaN(date.getTime())) {
+          profile.dateOfBirth = date.toISOString();
+        } else {
+          // Remove invalid dateOfBirth
+          delete profile.dateOfBirth;
+        }
+      }
+      // Remove empty dateOfBirth
+      if (!profile.dateOfBirth) delete profile.dateOfBirth;
+
       const userData = {
         ...newUser,
-        profile: {
-          ...newUser.profile,
-          semester: Number(newUser.profile.semester) || 1,
-          admissionYear: Number(newUser.profile.admissionYear) || new Date().getFullYear(),
-          cgpa: Number(newUser.profile.cgpa) || 0,
-          sgpa: Number(newUser.profile.sgpa) || 0
-        }
+        profile
       };
 
-      await userAPI.create(userData);
+      const result = await userAPI.create(userData);
+      console.log('User created:', result.data?.user || result);
       toast.success('User created successfully');
       setShowCreateModal(false);
       setNewUser({
@@ -117,7 +152,12 @@ const UserManagement = () => {
       });
       fetchUsers();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to create user');
+      // Show backend validation errors if available
+      if (error.response?.data?.errors) {
+        error.response.data.errors.forEach(e => toast.error(`${e.field}: ${e.message}`));
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to create user');
+      }
     }
   };
 
@@ -182,11 +222,13 @@ const UserManagement = () => {
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
-      await userAPI.delete(userId);
+      const result = await userAPI.delete(userId);
+      console.log('User deleted:', userId, result);
       toast.success('User deleted successfully');
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to delete user');
+      console.error('Delete user error:', error);
     }
   };
 

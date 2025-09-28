@@ -69,6 +69,8 @@ const LibraryManagement = () => {
     }
     try {
       // Only send fields your backend expects!
+      // Generate a unique QR code string (simple random string)
+      const qrCode = `${newBook.isbn}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
       const bookToCreate = {
         title: newBook.title,
         author: newBook.author,
@@ -78,7 +80,8 @@ const LibraryManagement = () => {
         totalCopies: Number(newBook.totalCopies),
         availableCopies: Number(newBook.totalCopies),
         description: newBook.description,
-        location: newBook.location
+        location: newBook.location,
+        qrCode
       };
       await libraryAPI.createBook(bookToCreate);
       toast.success('Book added successfully');
@@ -114,16 +117,17 @@ const LibraryManagement = () => {
   };
 
   const filteredBooks = books.filter(book =>
-    book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    book.isbn.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    book.genre.toLowerCase().includes(searchTerm.toLowerCase())
+    book &&
+    book.title && book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    book.author && book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    book.isbn && book.isbn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    book.genre && book.genre.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredBorrowRecords = borrowRecords.filter(record =>
-    record.bookId.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    record.userId.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (record.userId.studentId && record.userId.studentId.toLowerCase().includes(searchTerm.toLowerCase()))
+    record.bookId && record.bookId.title && record.bookId.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    record.userId && record.userId.name && record.userId.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (record.userId && record.userId.studentId && record.userId.studentId.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const getStatusColor = (status) => {
@@ -308,32 +312,31 @@ const LibraryManagement = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Borrow Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                
               </tr>
             </thead>
             <tbody>
               {filteredBorrowRecords.map((record) => (
-                <tr key={record._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="font-semibold">{record.userId.name}</div>
-                    <div className="text-xs text-gray-500">{record.userId.studentId || record.userId.email}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-semibold">{record.bookId.title}</div>
-                    <div className="text-xs text-gray-500">{record.bookId.author}</div>
-                  </td>
-                  <td className="px-6 py-4">{new Date(record.borrowDate).toLocaleDateString()}</td>
-                  <td className="px-6 py-4">{new Date(record.dueDate).toLocaleDateString()}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(record.status)}`}>
-                      {getStatusIcon(record.status)}
-                      {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {/* Add actions for borrow records if needed */}
-                  </td>
-                </tr>
+                (!record.bookId || !record.userId) ? null : (
+                  <tr key={record._id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="font-semibold">{record.userId.name || 'Unknown'}</div>
+                      <div className="text-xs text-gray-500">{record.userId.studentId || record.userId.email || 'N/A'}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-semibold">{record.bookId.title || 'Unknown'}</div>
+                      <div className="text-xs text-gray-500">{record.bookId.author || 'N/A'}</div>
+                    </td>
+                    <td className="px-6 py-4">{record.borrowDate ? new Date(record.borrowDate).toLocaleDateString() : 'N/A'}</td>
+                    <td className="px-6 py-4">{record.dueDate ? new Date(record.dueDate).toLocaleDateString() : 'N/A'}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(record.status)}`}>
+                        {getStatusIcon(record.status)}
+                        {record.status ? record.status.charAt(0).toUpperCase() + record.status.slice(1) : 'N/A'}
+                      </span>
+                    </td>
+                  </tr>
+                )
               ))}
               {filteredBorrowRecords.length === 0 && (
                 <tr>

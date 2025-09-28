@@ -1,6 +1,8 @@
-import { Building, Calendar, Edit, Eye, GraduationCap, MapPin, Plus, Search, Star, Trash2, TrendingUp, Users } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Eye, FileText, Plus, Search, Trash2, TrendingUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { interviewAPI, placementAPI } from '../../services/api';
 
 const AdminPlacementManagement = () => {
   const [companies, setCompanies] = useState([]);
@@ -18,183 +20,225 @@ const AdminPlacementManagement = () => {
   });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('drives');
+  const [applications, setApplications] = useState([]);
+  const [loadingApps, setLoadingApps] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterBranch, setFilterBranch] = useState('all');
   const [showAddDrive, setShowAddDrive] = useState(false);
   const [selectedDrive, setSelectedDrive] = useState(null);
+    const [editDrive, setEditDrive] = useState(null);
+    const [showEditModal, setShowEditModal] = useState(false);
+  const [scheduleModalApp, setScheduleModalApp] = useState(null);
+  const [interviewForm, setInterviewForm] = useState({
+    date: '',
+    time: '',
+    mode: 'online',
+    questions: [''],
+  });
+  const [scheduling, setScheduling] = useState(false);
 
   useEffect(() => {
     fetchPlacementData();
   }, []);
 
+  useEffect(() => {
+    if (activeTab === 'applications') {
+      fetchApplications();
+    }
+    // eslint-disable-next-line
+  }, [activeTab]);
+
+  const fetchApplications = async () => {
+    setLoadingApps(true);
+    try {
+      const res = await placementAPI.getAllStudentApplications();
+      setApplications(res.data.applications || []);
+    } catch (err) {
+      setApplications([]);
+      toast.error('Failed to fetch applications');
+    } finally {
+      setLoadingApps(false);
+    }
+  };
+
   const fetchPlacementData = async () => {
     try {
       setLoading(true);
-
-      // Mock data for development
-      const mockCompanies = [
-        {
-          _id: '1',
-          name: 'TechCorp Solutions',
-          industry: 'Information Technology',
-          location: 'Bangalore, India',
-          website: 'https://techcorp.com',
-          description: 'Leading software development company specializing in AI and machine learning solutions.',
-          status: 'active',
-          contactPerson: {
-            name: 'John Smith',
-            email: 'john@techcorp.com',
-            phone: '+91-9876543210'
-          },
-          visitHistory: [
-            { date: '2024-03-15', positions: 10, selected: 8 },
-            { date: '2023-09-20', positions: 8, selected: 6 }
-          ]
-        },
-        {
-          _id: '2',
-          name: 'DataFlow Analytics',
-          industry: 'Data Analytics',
-          location: 'Mumbai, India',
-          website: 'https://dataflow.com',
-          description: 'Data analytics and business intelligence solutions provider.',
-          status: 'active',
-          contactPerson: {
-            name: 'Sarah Johnson',
-            email: 'sarah@dataflow.com',
-            phone: '+91-9876543211'
-          },
-          visitHistory: [
-            { date: '2024-02-10', positions: 5, selected: 4 }
-          ]
-        }
-      ];
-
-      const mockDrives = [
-        {
-          _id: '1',
-          companyId: '1',
-          companyName: 'TechCorp Solutions',
-          jobTitle: 'Software Development Engineer',
-          package: {
-            ctc: 1200000,
-            baseSalary: 900000,
-            allowances: 200000
-          },
-          eligibility: {
-            minCGPA: 7.5,
-            branches: ['CSE', 'ECE'],
-            batch: '2024',
-            backlogs: false
-          },
-          driveDate: '2024-09-25',
-          applicationDeadline: '2024-09-20',
-          rounds: ['Online Test', 'Technical Interview', 'HR Interview'],
-          maxPositions: 10,
-          status: 'upcoming',
-          applicationsCount: 25,
-          selectedCount: 0
-        },
-        {
-          _id: '2',
-          companyId: '2',
-          companyName: 'DataFlow Analytics',
-          jobTitle: 'Data Analyst',
-          package: {
-            ctc: 900000,
-            baseSalary: 700000,
-            allowances: 150000
-          },
-          eligibility: {
-            minCGPA: 7.0,
-            branches: ['CSE', 'ECE', 'ME'],
-            batch: '2024',
-            backlogs: true
-          },
-          driveDate: '2024-09-30',
-          applicationDeadline: '2024-09-25',
-          rounds: ['Aptitude Test', 'Technical Interview', 'Group Discussion'],
-          maxPositions: 5,
-          status: 'ongoing',
-          applicationsCount: 18,
-          selectedCount: 2
-        }
-      ];
-
-      const mockStudents = [
-        {
-          _id: '1',
-          studentId: 'ST001',
-          name: 'John Doe',
-          email: 'john@student.edu',
-          branch: 'CSE',
-          cgpa: 8.5,
-          batch: '2024',
-          skills: ['JavaScript', 'React', 'Node.js', 'Python'],
-          placementStatus: 'placed',
-          appliedDrives: ['1', '2'],
-          placedCompany: 'TechCorp Solutions',
-          package: 1200000
-        },
-        {
-          _id: '2',
-          studentId: 'ST002',
-          name: 'Jane Smith',
-          email: 'jane@student.edu',
-          branch: 'ECE',
-          cgpa: 7.8,
-          batch: '2024',
-          skills: ['C++', 'MATLAB', 'Python', 'Machine Learning'],
-          placementStatus: 'eligible',
-          appliedDrives: ['2'],
-        },
-        {
-          _id: '3',
-          studentId: 'ST003',
-          name: 'Mike Johnson',
-          email: 'mike@student.edu',
-          branch: 'ME',
-          cgpa: 6.5,
-          batch: '2024',
-          skills: ['AutoCAD', 'SolidWorks', 'ANSYS'],
-          placementStatus: 'not-eligible',
-          appliedDrives: [],
-        }
-      ];
-
-      setCompanies(mockCompanies);
-      setDrives(mockDrives);
-      setStudents(mockStudents);
-
-      // Calculate stats
-      const totalCompanies = mockCompanies.length;
-      const activeDrives = mockDrives.filter(d => ['upcoming', 'ongoing'].includes(d.status)).length;
-      const totalApplications = mockDrives.reduce((sum, drive) => sum + drive.applicationsCount, 0);
-      const placedStudents = mockStudents.filter(s => s.placementStatus === 'placed').length;
-      const eligibleStudents = mockStudents.filter(s => s.placementStatus === 'eligible').length;
-      const totalEligible = placedStudents + eligibleStudents;
-      const placementRate = totalEligible > 0 ? (placedStudents / totalEligible) * 100 : 0;
-      const placedStudentsWithPackage = mockStudents.filter(s => s.package);
-      const averagePackage = placedStudentsWithPackage.length > 0
-        ? placedStudentsWithPackage.reduce((sum, s) => sum + (s.package || 0), 0) / placedStudentsWithPackage.length
-        : 0;
-      const highestPackage = Math.max(...placedStudentsWithPackage.map(s => s.package || 0), 0);
-
-      setStats({
-        totalCompanies,
-        activeDrives,
-        totalApplications,
-        placedStudents,
-        eligibleStudents,
-        placementRate,
-        averagePackage,
-        highestPackage
-      });
+      // Fetch drives from backend
+  const drivesRes = await placementAPI.getJobs({ limit: 100 });
+  console.log('Fetched jobs:', drivesRes.data.data.jobs);
+  setDrives(drivesRes.data.data.jobs || []);
+      // TODO: Fetch companies and students from backend if needed
+      // setCompanies(...)
+      // setStudents(...)
+      // Show all jobs for admin
+      setStats((prev) => ({
+        ...prev,
+        activeDrives: (drivesRes.data.data.jobs || []).length,
+      }));
     } catch (error) {
+      toast.error('Error fetching placement drives');
       console.error('Error fetching placement data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+    // Open edit modal when selectedDrive is set
+    useEffect(() => {
+      if (selectedDrive) {
+        setEditDrive({
+          ...selectedDrive,
+          requirements: (selectedDrive.requirements || []).join(', '),
+          departments: (selectedDrive.eligibilityCriteria?.departments || []).join(', '),
+          graduationYears: (selectedDrive.eligibilityCriteria?.graduationYears || []).join(', '),
+          skills: (selectedDrive.eligibilityCriteria?.skills || []).join(', '),
+          cgpaMin: selectedDrive.eligibilityCriteria?.cgpaMin ?? '',
+          salaryMin: selectedDrive.salaryRange?.min ?? '',
+          salaryMax: selectedDrive.salaryRange?.max ?? '',
+          salaryCurrency: selectedDrive.salaryRange?.currency ?? 'INR',
+          applicationDeadline: selectedDrive.applicationDeadline ? new Date(selectedDrive.applicationDeadline).toISOString().slice(0,10) : '',
+        });
+        setShowEditModal(true);
+      } else {
+        setShowEditModal(false);
+      }
+    }, [selectedDrive]);
+
+    const handleEditDriveChange = (field, value) => {
+      setEditDrive(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleUpdateDrive = async () => {
+      if (!editDrive.title || !editDrive.companyId || !editDrive.description || !editDrive.location || !editDrive.salaryMin || !editDrive.salaryMax || !editDrive.applicationDeadline || !editDrive.totalPositions) {
+        toast.error('Please fill all required fields');
+        return;
+      }
+      try {
+        const payload = {
+          title: editDrive.title,
+          companyId: editDrive.companyId,
+          description: editDrive.description,
+          requirements: editDrive.requirements.split(',').map(r => r.trim()).filter(Boolean),
+          location: editDrive.location,
+          employmentType: editDrive.employmentType,
+          salaryRange: {
+            min: Number(editDrive.salaryMin),
+            max: Number(editDrive.salaryMax),
+            currency: editDrive.salaryCurrency,
+          },
+          applicationDeadline: new Date(editDrive.applicationDeadline),
+          eligibilityCriteria: {
+            cgpaMin: editDrive.cgpaMin ? Number(editDrive.cgpaMin) : undefined,
+            departments: editDrive.departments.split(',').map(d => d.trim()).filter(Boolean),
+            graduationYears: editDrive.graduationYears.split(',').map(y => Number(y.trim())).filter(Boolean),
+            skills: editDrive.skills.split(',').map(s => s.trim()).filter(Boolean),
+          },
+          totalPositions: Number(editDrive.totalPositions),
+          isActive: editDrive.isActive,
+        };
+        await placementAPI.updateJob(editDrive._id, payload);
+        toast.success('Drive updated');
+        setShowEditModal(false);
+        setSelectedDrive(null);
+        fetchPlacementData();
+      } catch (error) {
+        const msg = error?.response?.data?.message || error.message || 'Failed to update drive';
+        toast.error(msg);
+      }
+    };
+  // Add Drive Modal State
+  const [newDrive, setNewDrive] = useState({
+    title: '',
+  companyId: '',
+  companyName: '',
+    description: '',
+    requirements: '',
+    location: '',
+    employmentType: 'full_time',
+    salaryMin: '',
+    salaryMax: '',
+    salaryCurrency: 'INR',
+    applicationDeadline: '',
+    cgpaMin: '',
+    departments: '',
+    graduationYears: '',
+    skills: '',
+    totalPositions: '',
+  });
+
+  const handleAddDrive = async () => {
+    // Extra validation
+  if (!newDrive.title || !newDrive.companyId || !newDrive.companyName || !newDrive.description || !newDrive.location || !newDrive.salaryMin || !newDrive.salaryMax || !newDrive.applicationDeadline || !newDrive.totalPositions) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    // Validate ObjectId format (24 hex chars)
+    if (!/^[a-fA-F0-9]{24}$/.test(newDrive.companyId)) {
+      toast.error('Company ID must be a valid MongoDB ObjectId (24 hex characters)');
+      return;
+    }
+    // Validate date format
+    if (isNaN(Date.parse(newDrive.applicationDeadline))) {
+      toast.error('Application deadline must be a valid date');
+      return;
+    }
+    // Validate numbers
+    if (Number(newDrive.salaryMin) <= 0 || Number(newDrive.salaryMax) <= 0 || Number(newDrive.totalPositions) <= 0) {
+      toast.error('Salary and total positions must be positive numbers');
+      return;
+    }
+    try {
+      const payload = {
+        title: newDrive.title,
+  companyId: newDrive.companyId,
+  companyName: newDrive.companyName,
+        description: newDrive.description,
+        requirements: newDrive.requirements.split(',').map(r => r.trim()).filter(Boolean),
+        location: newDrive.location,
+        employmentType: newDrive.employmentType,
+        salaryRange: {
+          min: Number(newDrive.salaryMin),
+          max: Number(newDrive.salaryMax),
+          currency: newDrive.salaryCurrency,
+        },
+        applicationDeadline: new Date(newDrive.applicationDeadline),
+        eligibilityCriteria: {
+          cgpaMin: newDrive.cgpaMin ? Number(newDrive.cgpaMin) : undefined,
+          departments: newDrive.departments.split(',').map(d => d.trim()).filter(Boolean),
+          graduationYears: newDrive.graduationYears.split(',').map(y => Number(y.trim())).filter(Boolean),
+          skills: newDrive.skills.split(',').map(s => s.trim()).filter(Boolean),
+        },
+        totalPositions: Number(newDrive.totalPositions),
+      };
+      console.log('Submitting payload:', payload);
+      await placementAPI.createJob(payload);
+      toast.success('Placement drive added');
+      setShowAddDrive(false);
+      setNewDrive({
+        title: '',
+        companyId: '',
+        description: '',
+        requirements: '',
+        location: '',
+        employmentType: 'full_time',
+        salaryMin: '',
+        salaryMax: '',
+        salaryCurrency: 'INR',
+        applicationDeadline: '',
+        cgpaMin: '',
+        departments: '',
+        graduationYears: '',
+        skills: '',
+        totalPositions: '',
+      });
+      fetchPlacementData();
+    } catch (error) {
+      // Show backend error message if available
+      const msg = error?.response?.data?.message || error.message || 'Failed to add placement drive';
+      toast.error(msg);
+      console.error('Add drive error:', error, 'Payload:', payload);
     }
   };
 
@@ -213,17 +257,18 @@ const AdminPlacementManagement = () => {
   const deleteDrive = async (driveId) => {
     if (!window.confirm('Are you sure you want to delete this placement drive?')) return;
     try {
-      setDrives(prev => prev.filter(drive => drive._id !== driveId));
+      await placementAPI.deleteJob(driveId);
+      toast.success('Drive deleted successfully');
+      fetchPlacementData();
     } catch (error) {
+      toast.error('Failed to delete drive');
       console.error('Error deleting drive:', error);
     }
   };
 
   const filteredDrives = drives.filter(drive => {
-    const matchesSearch = drive.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      drive.jobTitle.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || drive.status === filterStatus;
-    return matchesSearch && matchesStatus;
+    const matchesSearch = drive.title?.toLowerCase().includes(searchTerm.toLowerCase());
+    return !searchTerm || matchesSearch;
   });
 
   const filteredStudents = students.filter(student => {
@@ -249,6 +294,72 @@ const AdminPlacementManagement = () => {
       'not-eligible': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
     };
     return colors[status] || colors.upcoming;
+  };
+
+  const handleInterviewFormChange = (field, value) => {
+    setInterviewForm((prev) => ({ ...prev, [field]: value }));
+  };
+  const handleInterviewQuestionChange = (idx, value) => {
+    setInterviewForm((prev) => {
+      const questions = [...prev.questions];
+      questions[idx] = value;
+      return { ...prev, questions };
+    });
+  };
+  const addInterviewQuestion = () => {
+    setInterviewForm((prev) => ({ ...prev, questions: [...prev.questions, ''] }));
+  };
+  const removeInterviewQuestion = (idx) => {
+    setInterviewForm((prev) => ({ ...prev, questions: prev.questions.filter((_, i) => i !== idx) }));
+  };
+  const handleScheduleInterview = async () => {
+    // Validate date
+    if (!interviewForm.date || isNaN(Date.parse(interviewForm.date))) {
+      toast.error('Please select a valid date');
+      return;
+    }
+    // Validate time
+    if (!interviewForm.time || typeof interviewForm.time !== 'string' || interviewForm.time.length < 3) {
+      toast.error('Please enter a valid time');
+      return;
+    }
+    // Validate mode
+    if (!['online', 'offline'].includes(interviewForm.mode)) {
+      toast.error('Please select interview mode');
+      return;
+    }
+    // Validate questions
+    if (!Array.isArray(interviewForm.questions) || interviewForm.questions.length === 0 || interviewForm.questions.some(q => !q.trim())) {
+      toast.error('Please add at least one valid aptitude question');
+      return;
+    }
+    setScheduling(true);
+    try {
+      const payload = {
+        date: interviewForm.date, // send as string (YYYY-MM-DD)
+        time: interviewForm.time, // send as string (HH:mm)
+        mode: interviewForm.mode,
+        questions: interviewForm.questions.map(q => q.trim()),
+      };
+      const res = await interviewAPI.scheduleInterview(scheduleModalApp._id, payload);
+      toast.success('Interview scheduled successfully');
+      // Update the scheduled application in state immediately for instant feedback
+      if (res.data && res.data.application) {
+        setApplications(applications => applications.map(app =>
+          app._id === res.data.application._id ? res.data.application : app
+        ));
+      }
+      setScheduleModalApp(null);
+      setInterviewForm({ date: '', time: '', mode: 'online', questions: [''] });
+      // Also refresh applications after a short delay to ensure backend sync
+      setTimeout(() => {
+        fetchApplications();
+      }, 300);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to schedule interview');
+    } finally {
+      setScheduling(false);
+    }
   };
 
   if (loading) {
@@ -307,7 +418,7 @@ const AdminPlacementManagement = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b mb-6 gap-4">
+  <div className="flex border-b mb-6 gap-4">
         <button
           onClick={() => setActiveTab('drives')}
           className={`py-4 px-1 border-b-2 font-medium text-sm ${
@@ -339,6 +450,16 @@ const AdminPlacementManagement = () => {
           Student Placements ({students.length})
         </button>
         <button
+          onClick={() => setActiveTab('applications')}
+          className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            activeTab === 'applications'
+              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          }`}
+        >
+          Applications
+        </button>
+        <button
           onClick={() => setActiveTab('analytics')}
           className={`py-4 px-1 border-b-2 font-medium text-sm ${
             activeTab === 'analytics'
@@ -348,6 +469,138 @@ const AdminPlacementManagement = () => {
         >
           Analytics & Reports
         </button>
+      {/* Applications Tab */}
+      {activeTab === 'applications' && (
+        <div className="flex flex-col items-center w-full">
+          {/* Main Applications Section (placeholder for other content) */}
+          <div className="w-full max-w-7xl mb-10">
+            {/* Place your main applications content here if any */}
+          </div>
+          {/* Student Job Applications Table */}
+          <h2 className="text-xl font-bold mb-6 flex items-center gap-2 self-start">
+            <FileText className="w-6 h-6 text-blue-500" />
+            Student Job Applications
+          </h2>
+          <div className="w-full max-w-7xl">
+            {loadingApps ? (
+              <div className="text-center py-12">
+                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">Loading applications...</p>
+              </div>
+            ) : applications.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">No applications found</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto w-full bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100">
+                <table className="min-w-full text-sm">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-gray-100 dark:bg-gray-700">
+                      <th className="py-3 px-4 text-left whitespace-nowrap">Student Name</th>
+                      <th className="py-3 px-4 text-left whitespace-nowrap">Email</th>
+                      <th className="py-3 px-4 text-left whitespace-nowrap">Student ID</th>
+                      <th className="py-3 px-4 text-left whitespace-nowrap">Department</th>
+                      <th className="py-3 px-4 text-left whitespace-nowrap">Job Title</th>
+                      <th className="py-3 px-4 text-left whitespace-nowrap">Company</th>
+                      <th className="py-3 px-4 text-left whitespace-nowrap">Location</th>
+                      <th className="py-3 px-4 text-left whitespace-nowrap">Status</th>
+                      <th className="py-3 px-4 text-left whitespace-nowrap">Applied At</th>
+                      <th className="py-3 px-4 text-left whitespace-nowrap">Resume</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {applications.map((app, idx) => {
+                      const isInterviewScheduled = app.status === 'interview_scheduled';
+                      return (
+                        <tr key={app._id} className={idx % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-900"}>
+                          <td className="py-2 px-4 max-w-[160px] truncate" title={app.userId?.name}>{app.userId?.name || '-'}</td>
+                          <td className="py-2 px-4 max-w-[180px] truncate" title={app.userId?.email}>{app.userId?.email || '-'}</td>
+                          <td className="py-2 px-4 max-w-[120px] truncate" title={app.userId?.studentId}>{app.userId?.studentId || '-'}</td>
+                          <td className="py-2 px-4 max-w-[120px] truncate" title={app.userId?.profile?.department}>{app.userId?.profile?.department || '-'}</td>
+                          <td className="py-2 px-4 max-w-[160px] truncate" title={app.jobId?.title}>{app.jobId?.title || '-'}</td>
+                          <td className="py-2 px-4 max-w-[160px] truncate" title={app.jobId?.company}>{app.jobId?.company || '-'}</td>
+                          <td className="py-2 px-4 max-w-[120px] truncate" title={app.jobId?.location}>{app.jobId?.location || '-'}</td>
+                          <td className="py-2 px-4 max-w-[100px] truncate" title={app.status}>{app.status.replace('_', ' ')}</td>
+                          <td className="py-2 px-4 max-w-[120px] truncate" title={app.appliedAt ? new Date(app.appliedAt).toLocaleDateString() : '-'}>{app.appliedAt ? new Date(app.appliedAt).toLocaleDateString() : '-'}</td>
+                          <td className="py-2 px-4 max-w-[100px] truncate">
+                            {app.resumeUrl ? (
+                              (() => {
+                                const fullUrl = `${import.meta.env.VITE_API_BASE_URL}${app.resumeUrl}`;
+                                return (
+                                  <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Download</a>
+                                );
+                              })()
+                            ) : (
+                              <span className="text-gray-400">No resume</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-4">
+                            {isInterviewScheduled ? (
+                              <button className="px-3 py-1 bg-gray-400 text-white rounded text-xs cursor-default" disabled>
+                                Scheduled
+                              </button>
+                            ) : (
+                              <button
+                                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                                onClick={() => setScheduleModalApp(app)}
+                              >
+                                Schedule Interview
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {/* Interview scheduling modal state and functions are moved above the return statement */}
+      {/* Interview Scheduling Modal */}
+      {scheduleModalApp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Schedule Interview for {scheduleModalApp.userId?.name}</h2>
+            <form className="flex flex-col gap-4">
+              <div>
+                <label className="font-medium">Date</label>
+                <input type="date" className="input w-full" value={interviewForm.date} onChange={e => handleInterviewFormChange('date', e.target.value)} />
+              </div>
+              <div>
+                <label className="font-medium">Time</label>
+                <input type="time" className="input w-full" value={interviewForm.time} onChange={e => handleInterviewFormChange('time', e.target.value)} />
+              </div>
+              <div>
+                <label className="font-medium">Mode</label>
+                <select className="input w-full" value={interviewForm.mode} onChange={e => handleInterviewFormChange('mode', e.target.value)}>
+                  <option value="online">Online</option>
+                  <option value="offline">Offline</option>
+                </select>
+              </div>
+              <div>
+                <label className="font-medium">Aptitude Questions</label>
+                {interviewForm.questions.map((q, idx) => (
+                  <div key={idx} className="flex gap-2 mb-2">
+                    <input type="text" className="input flex-1" placeholder={`Question ${idx + 1}`} value={q} onChange={e => handleInterviewQuestionChange(idx, e.target.value)} />
+                    {interviewForm.questions.length > 1 && (
+                      <button type="button" className="text-red-500" onClick={() => removeInterviewQuestion(idx)}>Remove</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" className="text-blue-600 mt-2" onClick={addInterviewQuestion}>Add Question</button>
+              </div>
+            </form>
+            <div className="flex gap-4 mt-6 justify-center">
+              <button className="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold" onClick={handleScheduleInterview} disabled={scheduling}>{scheduling ? 'Scheduling...' : 'Schedule'}</button>
+              <button className="px-6 py-2 bg-gray-300 rounded-lg font-semibold" onClick={() => setScheduleModalApp(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       </div>
 
       {/* Drives Tab */}
@@ -384,6 +637,95 @@ const AdminPlacementManagement = () => {
               Add Drive
             </button>
           </div>
+          {/* Add Drive Modal */}
+          {showAddDrive && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <h2 className="text-2xl font-bold mb-6 text-center">Add Placement Drive</h2>
+                <form className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Company Name<span className="text-red-500">*</span></label>
+                    <input type="text" className="input" placeholder="e.g. Infosys" value={newDrive.companyName} onChange={e => setNewDrive({ ...newDrive, companyName: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Job Title<span className="text-red-500">*</span></label>
+                    <input type="text" className="input" placeholder="e.g. Software Engineer" value={newDrive.title} onChange={e => setNewDrive({ ...newDrive, title: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Company ID<span className="text-red-500">*</span></label>
+                    <input type="text" className="input" placeholder="Paste Company ObjectId" value={newDrive.companyId} onChange={e => setNewDrive({ ...newDrive, companyId: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col md:col-span-2">
+                    <label className="font-medium mb-1">Description<span className="text-red-500">*</span></label>
+                    <textarea className="input" rows={2} placeholder="Job description" value={newDrive.description} onChange={e => setNewDrive({ ...newDrive, description: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col md:col-span-2">
+                    <label className="font-medium mb-1">Requirements (comma separated)</label>
+                    <input type="text" className="input" placeholder="e.g. React, Node.js" value={newDrive.requirements} onChange={e => setNewDrive({ ...newDrive, requirements: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Location<span className="text-red-500">*</span></label>
+                    <input type="text" className="input" placeholder="e.g. Bangalore" value={newDrive.location} onChange={e => setNewDrive({ ...newDrive, location: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Employment Type<span className="text-red-500">*</span></label>
+                    <select className="input" value={newDrive.employmentType} onChange={e => setNewDrive({ ...newDrive, employmentType: e.target.value })}>
+                      <option value="full_time">Full Time</option>
+                      <option value="part_time">Part Time</option>
+                      <option value="internship">Internship</option>
+                      <option value="contract">Contract</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Salary Min<span className="text-red-500">*</span></label>
+                    <input type="number" className="input" placeholder="e.g. 500000" value={newDrive.salaryMin} onChange={e => setNewDrive({ ...newDrive, salaryMin: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Salary Max<span className="text-red-500">*</span></label>
+                    <input type="number" className="input" placeholder="e.g. 1200000" value={newDrive.salaryMax} onChange={e => setNewDrive({ ...newDrive, salaryMax: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Currency</label>
+                    <select className="input" value={newDrive.salaryCurrency} onChange={e => setNewDrive({ ...newDrive, salaryCurrency: e.target.value })}>
+                      <option value="INR">INR</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                      <option value="GBP">GBP</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Application Deadline<span className="text-red-500">*</span></label>
+                    <input type="date" className="input" value={newDrive.applicationDeadline} onChange={e => setNewDrive({ ...newDrive, applicationDeadline: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Min CGPA</label>
+                    <input type="number" className="input" placeholder="e.g. 7.5" value={newDrive.cgpaMin} onChange={e => setNewDrive({ ...newDrive, cgpaMin: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Departments (comma separated)</label>
+                    <input type="text" className="input" placeholder="e.g. CSE, ECE" value={newDrive.departments} onChange={e => setNewDrive({ ...newDrive, departments: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Graduation Years (comma separated)</label>
+                    <input type="text" className="input" placeholder="e.g. 2024, 2025" value={newDrive.graduationYears} onChange={e => setNewDrive({ ...newDrive, graduationYears: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Skills (comma separated)</label>
+                    <input type="text" className="input" placeholder="e.g. Python, Java" value={newDrive.skills} onChange={e => setNewDrive({ ...newDrive, skills: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="font-medium mb-1">Total Positions<span className="text-red-500">*</span></label>
+                    <input type="number" className="input" placeholder="e.g. 10" value={newDrive.totalPositions} onChange={e => setNewDrive({ ...newDrive, totalPositions: e.target.value })} />
+                  </div>
+                </form>
+                <div className="flex gap-4 mt-8 justify-center">
+                  <button className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold" onClick={handleAddDrive}>Add Drive</button>
+                  <button className="px-6 py-2 bg-gray-300 rounded-lg font-semibold" onClick={() => setShowAddDrive(false)}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Drives Grid */}
           <div className="grid md:grid-cols-2 gap-4">
             {filteredDrives.map((drive) => (
@@ -395,15 +737,15 @@ const AdminPlacementManagement = () => {
               >
                 <div className="flex justify-between items-center mb-2">
                   <div>
-                    <div className="font-bold text-lg">{drive.jobTitle}</div>
-                    <div className="text-sm text-gray-500">{drive.companyName}</div>
+                    <div className="font-bold text-lg">{drive.title}</div>
+                    <div className="text-sm text-gray-500">Company ID: {drive.companyId}</div>
                   </div>
                   <div className="flex gap-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(drive.status)}`}>
-                      {drive.status.charAt(0).toUpperCase() + drive.status.slice(1)}
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(drive.isActive ? 'active' : 'inactive')}`}>
+                      {drive.isActive ? 'Active' : 'Inactive'}
                     </span>
                     <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                      ₹{(drive.package.ctc / 100000).toFixed(1)}L CTC
+                      ₹{(drive.salaryRange?.max / 100000).toFixed(1)}L Max
                     </span>
                   </div>
                 </div>
@@ -424,57 +766,124 @@ const AdminPlacementManagement = () => {
                   </button>
                 </div>
                 <div className="text-xs text-gray-700 dark:text-gray-200 mb-2">
-                  <div>Drive Date: <span className="font-medium">{new Date(drive.driveDate).toLocaleDateString()}</span></div>
+                  <div>Description: <span className="font-medium">{drive.description}</span></div>
+                  <div>Location: <span className="font-medium">{drive.location}</span></div>
                   <div>Deadline: <span className="font-medium">{new Date(drive.applicationDeadline).toLocaleDateString()}</span></div>
-                  <div>Positions: <span className="font-medium">{drive.maxPositions}</span></div>
-                  <div>Applications: <span className="font-medium">{drive.applicationsCount}</span></div>
+                  <div>Positions: <span className="font-medium">{drive.totalPositions}</span></div>
+                  <div>Applications: <span className="font-medium">{drive.appliedCount || 0}</span></div>
                 </div>
                 <div className="text-xs text-gray-700 dark:text-gray-200 mb-2">
                   <div>
                     <span className="font-semibold">Eligibility:</span>
-                    Min CGPA: {drive.eligibility.minCGPA} | Branches: {drive.eligibility.branches.join(', ')} | Backlogs: {drive.eligibility.backlogs ? 'Allowed' : 'Not Allowed'}
+                    Min CGPA: {drive.eligibilityCriteria?.cgpaMin ?? '-'} | Departments: {drive.eligibilityCriteria?.departments?.join(', ') ?? '-'}
                   </div>
                 </div>
                 <div className="text-xs text-gray-700 dark:text-gray-200 mb-2">
-                  <span className="font-semibold">Selection Rounds:</span>
-                  {drive.rounds.map((round, index) => (
+                  <span className="font-semibold">Skills:</span>
+                  {drive.eligibilityCriteria?.skills?.map((skill, index) => (
                     <span
                       key={index}
                       className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full dark:bg-blue-900/30 dark:text-blue-300"
                     >
-                      {round}
+                      {skill}
                     </span>
                   ))}
                 </div>
-                {drive.status !== 'cancelled' && (
-                  <div className="flex gap-2 mt-2">
-                    {drive.status === 'upcoming' && (
-                      <button
-                        onClick={() => updateDriveStatus(drive._id, 'ongoing')}
-                        className="flex-1 px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        Start Drive
-                      </button>
-                    )}
-                    {drive.status === 'ongoing' && (
-                      <button
-                        onClick={() => updateDriveStatus(drive._id, 'completed')}
-                        className="flex-1 px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        Complete Drive
-                      </button>
-                    )}
-                    <button
-                      onClick={() => updateDriveStatus(drive._id, 'cancelled')}
-                      className="px-3 py-1 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
+                {/* Status/Actions can be added here if needed */}
               </motion.div>
             ))}
           </div>
+            {/* Edit Drive Modal */}
+            {showEditModal && editDrive && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <h2 className="text-2xl font-bold mb-6 text-center">View/Edit Placement Drive</h2>
+                  <form className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Job Title<span className="text-red-500">*</span></label>
+                      <input type="text" className="input" value={editDrive.title} onChange={e => handleEditDriveChange('title', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Company ID<span className="text-red-500">*</span></label>
+                      <input type="text" className="input" value={editDrive.companyId} onChange={e => handleEditDriveChange('companyId', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col md:col-span-2">
+                      <label className="font-medium mb-1">Description<span className="text-red-500">*</span></label>
+                      <textarea className="input" rows={2} value={editDrive.description} onChange={e => handleEditDriveChange('description', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col md:col-span-2">
+                      <label className="font-medium mb-1">Requirements (comma separated)</label>
+                      <input type="text" className="input" value={editDrive.requirements} onChange={e => handleEditDriveChange('requirements', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Location<span className="text-red-500">*</span></label>
+                      <input type="text" className="input" value={editDrive.location} onChange={e => handleEditDriveChange('location', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Employment Type<span className="text-red-500">*</span></label>
+                      <select className="input" value={editDrive.employmentType} onChange={e => handleEditDriveChange('employmentType', e.target.value)}>
+                        <option value="full_time">Full Time</option>
+                        <option value="part_time">Part Time</option>
+                        <option value="internship">Internship</option>
+                        <option value="contract">Contract</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Salary Min<span className="text-red-500">*</span></label>
+                      <input type="number" className="input" value={editDrive.salaryMin} onChange={e => handleEditDriveChange('salaryMin', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Salary Max<span className="text-red-500">*</span></label>
+                      <input type="number" className="input" value={editDrive.salaryMax} onChange={e => handleEditDriveChange('salaryMax', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Currency</label>
+                      <select className="input" value={editDrive.salaryCurrency} onChange={e => handleEditDriveChange('salaryCurrency', e.target.value)}>
+                        <option value="INR">INR</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Application Deadline<span className="text-red-500">*</span></label>
+                      <input type="date" className="input" value={editDrive.applicationDeadline} onChange={e => handleEditDriveChange('applicationDeadline', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Min CGPA</label>
+                      <input type="number" className="input" value={editDrive.cgpaMin} onChange={e => handleEditDriveChange('cgpaMin', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Departments (comma separated)</label>
+                      <input type="text" className="input" value={editDrive.departments} onChange={e => handleEditDriveChange('departments', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Graduation Years (comma separated)</label>
+                      <input type="text" className="input" value={editDrive.graduationYears} onChange={e => handleEditDriveChange('graduationYears', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Skills (comma separated)</label>
+                      <input type="text" className="input" value={editDrive.skills} onChange={e => handleEditDriveChange('skills', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Total Positions<span className="text-red-500">*</span></label>
+                      <input type="number" className="input" value={editDrive.totalPositions} onChange={e => handleEditDriveChange('totalPositions', e.target.value)} />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="font-medium mb-1">Active</label>
+                      <select className="input" value={editDrive.isActive} onChange={e => handleEditDriveChange('isActive', e.target.value === 'true')}>
+                        <option value={true}>Active</option>
+                        <option value={false}>Inactive</option>
+                      </select>
+                    </div>
+                  </form>
+                  <div className="flex gap-4 mt-8 justify-center">
+                    <button className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold" onClick={handleUpdateDrive}>Save Changes</button>
+                    <button className="px-6 py-2 bg-gray-300 rounded-lg font-semibold" onClick={() => { setShowEditModal(false); setSelectedDrive(null); }}>Cancel</button>
+                  </div>
+                </div>
+              </div>
+            )}
           {filteredDrives.length === 0 && (
             <div className="text-center text-gray-500 py-8">
               <div className="font-semibold text-lg mb-2">No placement drives found</div>

@@ -256,8 +256,18 @@ const createUser = async (req, res) => {
       }
     }
 
-    const user = new User(userData);
-    await user.save();
+    let user;
+    try {
+      user = new User(userData);
+      await user.save();
+    } catch (err) {
+      console.error('User save error:', err);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create user',
+        error: err.message,
+      });
+    }
 
     const userResponse = await User.findById(user._id).select('-password');
 
@@ -267,10 +277,11 @@ const createUser = async (req, res) => {
       data: { user: userResponse },
     });
   } catch (error) {
-    res.status(400).json({
+    console.error('Create user error:', error);
+    res.status(500).json({
       success: false,
-      message: 'Failed to create user',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      message: 'Server error occurred while creating user',
+      error: error.message,
     });
   }
 };
@@ -378,23 +389,52 @@ const updateUser = async (req, res) => {
 
 // Delete user by ID (Admin only)
 const deleteUser = async (req, res) => {
+  const { logger } = require('../config/logger');
   try {
     const { id } = req.params;
+    const admin = req.user ? { id: req.user._id, email: req.user.email, role: req.user.role } : null;
 
     const user = await User.findByIdAndDelete(id);
 
     if (!user) {
+      logger.warn({
+        event: 'user_delete_attempt',
+        admin,
+        targetUserId: id,
+        result: 'not_found',
+        timestamp: new Date().toISOString(),
+      });
       return res.status(404).json({
         success: false,
         message: 'User not found',
       });
     }
 
+    logger.info({
+      event: 'user_deleted',
+      admin,
+      deletedUser: {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
     res.json({
       success: true,
       message: 'User deleted successfully',
     });
   } catch (error) {
+    logger.error({
+      event: 'user_delete_error',
+      error: error.message,
+      stack: error.stack,
+      admin: req.user ? { id: req.user._id, email: req.user.email, role: req.user.role } : null,
+      targetUserId: req.params.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({
       success: false,
       message: 'Failed to delete user',

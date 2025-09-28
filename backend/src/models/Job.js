@@ -14,6 +14,12 @@ const JobSchema = new Schema({
     required: true,
     index: true,
   },
+  companyName: {
+    type: String,
+    required: [true, 'Company name is required'],
+    trim: true,
+    maxlength: [200, 'Company name cannot exceed 200 characters'],
+  },
   description: {
     type: String,
     required: [true, 'Description is required'],

@@ -16,14 +16,15 @@ exports.APIError = APIError;
 exports.createJob = async (req, res) => {
   try {
     const jobData = req.body;
-
+    // Defensive: ensure companyName is present
+    if (!jobData.companyName || jobData.companyName.trim().length < 2) {
+      return res.status(400).json({ success: false, message: 'Company name is required' });
+    }
     const job = new Job({
       ...jobData,
       postedBy: req.user && req.user.id
     });
-
     await job.save();
-
     res.status(201).json({
       success: true,
       message: 'Job posted successfully',
@@ -44,7 +45,6 @@ exports.getAllJobs = async (req, res) => {
       location,
       jobType,
       experience,
-      status = 'active',
       salary
     } = req.query;
 
@@ -54,7 +54,6 @@ exports.getAllJobs = async (req, res) => {
     if (location) filter.location = { $regex: location, $options: 'i' };
     if (jobType) filter.jobType = jobType;
     if (experience) filter.experienceRequired = experience;
-    if (status) filter.status = status;
     if (salary) {
       const [min, max] = String(salary).split('-');
       if (min) filter['salary.min'] = { $gte: Number(min) };
@@ -63,7 +62,7 @@ exports.getAllJobs = async (req, res) => {
 
     // Students can only see active jobs
     if (req.user && req.user.role === 'student') {
-      filter.status = 'active';
+      filter.isActive = true;
       filter.applicationDeadline = { $gte: new Date() };
     }
 
@@ -74,6 +73,7 @@ exports.getAllJobs = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit));
+    // jobs already include companyName field
 
     const total = await Job.countDocuments(filter);
 
@@ -100,6 +100,7 @@ exports.getJobById = async (req, res) => {
 
     const job = await Job.findById(id)
       .populate('postedBy', 'name email');
+    // job already includes companyName field
 
     if (!job) {
       res.status(404).json({ success: false, message: 'Job not found' });
@@ -175,8 +176,10 @@ exports.deleteJob = async (req, res) => {
 // Apply for job (student only)
 exports.applyForJob = async (req, res) => {
   try {
-    const { jobId } = req.params;
-    const { coverLetter, resume } = req.body;
+  const { jobId } = req.params;
+  const { coverLetter } = req.body;
+  // Multer puts file info in req.file
+  const resumeFile = req.file;
 
     // Verify job exists and is active
     const job = await Job.findById(jobId);
@@ -206,11 +209,15 @@ exports.applyForJob = async (req, res) => {
       return;
     }
 
+    if (!resumeFile) {
+      return res.status(400).json({ success: false, message: 'Resume file is required' });
+    }
+    const resumeUrl = `/uploads/resumes/${resumeFile.filename}`;
     const application = new Application({
       jobId,
       userId: req.user && req.user.id,
       coverLetter,
-      resume,
+      resumeUrl,
       status: 'applied'
     });
 
@@ -311,6 +318,19 @@ exports.getStudentApplications = async (req, res) => {
   }
 };
 
+
+
+exports.getAllStudentApplications = async (req, res) => {
+  try {
+    // Fetch all applications, populate user and job info
+    const applications = await Application.find()
+      .populate('userId', 'name email studentId profile')
+      .populate('jobId', 'title company location');
+    res.status(200).json({ success: true, applications });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch applications', error: error.message });
+  }
+};
 // Update application status (admin only)
 exports.updateApplicationStatus = async (req, res) => {
   try {

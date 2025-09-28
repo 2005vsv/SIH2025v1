@@ -28,6 +28,10 @@ mongoose.connect(process.env.MONGODB_URI)
 .then(() => console.log('Connected to MongoDB'))
 .catch((err) => console.error('MongoDB connection error:', err));
 
+// Serve resumes statically
+const path = require('path');
+app.use('/uploads/resumes', express.static(path.join(__dirname, 'uploads/resumes')));
+
 
 // Import and mount API routes
 const authRoutes = require('./src/routes/auth');

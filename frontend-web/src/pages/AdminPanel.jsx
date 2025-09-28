@@ -1,6 +1,7 @@
+import axios from 'axios';
 import { motion } from 'framer-motion';
-import { BarChart, BookOpen, DollarSign, Shield, Users } from 'lucide-react';
-import { useState } from 'react';
+import { BarChart, BookOpen, Briefcase, DollarSign, FileText, Shield, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import AdminChangePassword from './admin/AdminChangePassword';
 import AdminRegister from './admin/AdminRegister';
@@ -14,40 +15,48 @@ const AdminPanel = () => {
       { id: 'changeAdminPassword', label: 'Change Admin Password' },
     ];
 
-  const adminFeatures = [
-    {
-      id: 'users',
-      icon: <Users className="w-8 h-8" />,
-      title: 'User Management',
-      description: 'Manage students and staff accounts',
-      color: 'from-blue-500 to-blue-600',
-      count: '1,234',
-    },
-    {
-      id: 'library',
-      icon: <BookOpen className="w-8 h-8" />,
-      title: 'Library System',
-      description: 'Manage books and library operations',
-      color: 'from-green-500 to-green-600',
-      count: '2,567',
-    },
-    {
-      id: 'fees',
-      icon: <DollarSign className="w-8 h-8" />,
-      title: 'Fee Management',
-      description: 'Monitor and manage student fees',
-      color: 'from-purple-500 to-purple-600',
-      count: '₹12.5M',
-    },
-    {
-      id: 'analytics',
-      icon: <BarChart className="w-8 h-8" />,
-      title: 'Analytics',
-      description: 'View system analytics and reports',
-      color: 'from-orange-500 to-orange-600',
-      count: '95%',
-    },
-  ];
+    const adminFeatures = [
+      {
+        id: 'users',
+        icon: <Users className="w-8 h-8" />,
+        title: 'User Management',
+        description: 'Manage students and staff accounts',
+        color: 'from-blue-500 to-blue-600',
+        count: '1,234',
+      },
+      {
+        id: 'library',
+        icon: <BookOpen className="w-8 h-8" />,
+        title: 'Library System',
+        description: 'Manage books and library operations',
+        color: 'from-green-500 to-green-600',
+        count: '2,567',
+      },
+      {
+        id: 'fees',
+        icon: <DollarSign className="w-8 h-8" />,
+        title: 'Fee Management',
+        description: 'Monitor and manage student fees',
+        color: 'from-purple-500 to-purple-600',
+        count: '₹12.5M',
+      },
+      {
+        id: 'analytics',
+        icon: <BarChart className="w-8 h-8" />,
+        title: 'Analytics',
+        description: 'View system analytics and reports',
+        color: 'from-orange-500 to-orange-600',
+        count: '95%',
+      },
+      {
+        id: 'placements',
+        icon: <Briefcase className="w-8 h-8" />,
+        title: 'Placements',
+        description: 'View all student job applications',
+        color: 'from-teal-500 to-teal-600',
+        count: '',
+      },
+    ];
 
   const stats = [
     { label: 'Total Students', value: '1,234', change: '+12%', color: 'text-blue-600' },
@@ -55,6 +64,29 @@ const AdminPanel = () => {
     { label: 'Fee Collection', value: '₹12.5M', change: '+15%', color: 'text-purple-600' },
     { label: 'System Uptime', value: '99.9%', change: '+0.1%', color: 'text-orange-600' },
   ];
+
+  // Placements state
+  const [applications, setApplications] = useState([]);
+  const [loadingApps, setLoadingApps] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'placements') {
+      fetchApplications();
+    }
+    // eslint-disable-next-line
+  }, [activeTab]);
+
+  const fetchApplications = async () => {
+    setLoadingApps(true);
+    try {
+      const res = await axios.get('/api/placements/applications/all');
+      setApplications(res.data.applications || []);
+    } catch (err) {
+      setApplications([]);
+    } finally {
+      setLoadingApps(false);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6 bg-white dark:bg-gray-900 min-h-screen">
@@ -191,6 +223,62 @@ const AdminPanel = () => {
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center">
                 <p className="text-gray-600 dark:text-gray-300">Analytics dashboard would be implemented here</p>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'placements' && (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Student Job Applications</h3>
+              {loadingApps ? (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">Loading applications...</p>
+                </div>
+              ) : applications.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No applications found</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                    <thead>
+                      <tr>
+                        <th className="px-4 py-2 border-b">Student Name</th>
+                        <th className="px-4 py-2 border-b">Email</th>
+                        <th className="px-4 py-2 border-b">Roll No.</th>
+                        <th className="px-4 py-2 border-b">Department</th>
+                        <th className="px-4 py-2 border-b">Job Title</th>
+                        <th className="px-4 py-2 border-b">Company</th>
+                        <th className="px-4 py-2 border-b">Location</th>
+                        <th className="px-4 py-2 border-b">Status</th>
+                        <th className="px-4 py-2 border-b">Applied At</th>
+                        <th className="px-4 py-2 border-b">Resume</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {applications.map((app) => (
+                        <tr key={app._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <td className="px-4 py-2 border-b">{app.user?.name || '-'}</td>
+                          <td className="px-4 py-2 border-b">{app.user?.email || '-'}</td>
+                          <td className="px-4 py-2 border-b">{app.user?.rollNumber || '-'}</td>
+                          <td className="px-4 py-2 border-b">{app.user?.department || '-'}</td>
+                          <td className="px-4 py-2 border-b">{app.job?.title || '-'}</td>
+                          <td className="px-4 py-2 border-b">{app.job?.company || '-'}</td>
+                          <td className="px-4 py-2 border-b">{app.job?.location || '-'}</td>
+                          <td className="px-4 py-2 border-b">{app.status.replace('_', ' ')}</td>
+                          <td className="px-4 py-2 border-b">{app.appliedAt ? new Date(app.appliedAt).toLocaleDateString() : '-'}</td>
+                          <td className="px-4 py-2 border-b">
+                            {app.resumeUrl ? (
+                              <a href={app.resumeUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Download</a>
+                            ) : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>

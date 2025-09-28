@@ -64,12 +64,10 @@ exports.register = async (req, res, next) => {
     // Validate request body
     const { error, value } = registerSchema.validate(req.body);
     if (error) {
-      const response = {
+      return res.status(400).json({
         success: false,
         message: error.details[0].message,
-      };
-      res.status(400).json(response);
-      return;
+      });
     }
 
     const { name, email, password, role, studentId, profile } = value;
@@ -77,43 +75,49 @@ exports.register = async (req, res, next) => {
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      const response = {
+      return res.status(400).json({
         success: false,
         message: 'User already exists with this email',
-      };
-      res.status(400).json(response);
-      return;
+      });
     }
 
     // Check if studentId already exists (for students)
     if (role === 'student' && studentId) {
       const existingStudent = await User.findOne({ studentId });
       if (existingStudent) {
-        const response = {
+        return res.status(400).json({
           success: false,
           message: 'Student ID already exists',
-        };
-        res.status(400).json(response);
-        return;
+        });
       }
     }
 
     // Create user
-    const user = await User.create({
-      name,
-      email,
-      password,
-      role,
-      studentId: role === 'student' ? studentId : undefined,
-      profile,
-    });
+    let user;
+    try {
+      user = await User.create({
+        name,
+        email,
+        password,
+        role,
+        studentId: role === 'student' ? studentId : undefined,
+        profile,
+      });
+    } catch (err) {
+      logger.error('User.create error:', err);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create user',
+        error: err.message,
+      });
+    }
 
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user);
 
     logger.info(`User registered: ${email}`);
 
-    const response = {
+    return res.status(201).json({
       success: true,
       message: 'User registered successfully',
       data: {
@@ -128,12 +132,14 @@ exports.register = async (req, res, next) => {
         accessToken,
         refreshToken,
       },
-    };
-
-    res.status(201).json(response);
+    });
   } catch (error) {
     logger.error('Register error:', error);
-    next(error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
   }
 };
 
